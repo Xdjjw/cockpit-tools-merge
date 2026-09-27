@@ -159,6 +159,42 @@ func (s *relayServer) handleExecutorBody(c *gin.Context, spec *apiKeySpec, body 
 	if alt == "" {
 		alt = requestAlt(c)
 	}
+
+	// 请求混淆/拦截模块(shield)的常规路径接线。
+	//
+	// 与 ladder 的关系: ladder 启用时 ladderOwnsRequestRewrite() 为真,
+	// shieldTransformBody 会原样返回(见 shield.go 的说明) —— 两套词表不能先后
+	// 替换同一段文本, 否则模型拿到的是二次映射后的术语, 解码表对不上。
+	// 所以这里的调用在 ladder 开启时是 no-op, 只在用户关掉阶梯时才实际生效。
+	shieldResponses := shieldEnabled() && sourceFormatEqual(sourceFormat, sdktranslator.FormatOpenAIResponse)
+	if shieldResponses {
+		// 同一会话固定用同一个身份, 避免同一会话内切身份导致上游把它当异常。
+		if sk := shieldRequestBodySessionKey(body); sk != "" {
+			shieldApplyIdentity(c.Request.Header, sk)
+		}
+		if fixedAlt == "responses/compact" {
+			// compact 请求没有可混淆的用户正文, 改为注入锚点。
+			if transformed, changed := shieldInjectCompactAnchor(body); changed {
+				body = transformed
+				log.Printf("[shield] compact anchor injected (%d bytes)", len(body))
+			}
+		} else {
+			changed := false
+			if transformed, rewritten := shieldTransformBody(body); rewritten {
+				body = transformed
+				changed = true
+			}
+			boosted := shieldApplyInstructionsBoost(body)
+			if string(boosted) != string(body) {
+				body = boosted
+				log.Printf("[shield] instructions boost applied")
+			}
+			if changed {
+				log.Printf("[shield] request obfuscated lvl=%d (%d bytes)", currentShieldLevel(), len(body))
+			}
+		}
+	}
+
 	stream := requestBodyStream(body) && fixedAlt != "responses/compact"
 	if stream {
 		// 流式不做静默重试(正文落地后无法收回), 但按当前层做一次分级改写,
