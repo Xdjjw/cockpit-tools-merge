@@ -53,6 +53,24 @@ func (s *relayServer) router() *gin.Engine {
 	})
 	router.Use(s.policy.middleware())
 	router.GET("/v1/models", s.handleModels)
+	// ---- 本分支自有控制面 (均限本机, 见 isLoopbackRequest) ----
+	// 请求混淆/拦截模块。
+	router.GET("/v1/shield", handleShieldAdmin)
+	router.POST("/v1/shield", handleShieldAdmin)
+	router.POST("/v1/shield/on", handleShieldAdmin)
+	router.POST("/v1/shield/off", handleShieldAdmin)
+	router.POST("/v1/shield/level", handleShieldAdmin)
+	// 破甲阶梯: 查状态、开关、指定层。
+	router.GET("/v1/ladder", handleLadderAdmin)
+	router.POST("/v1/ladder", handleLadderAdmin)
+	router.POST("/v1/ladder/on", handleLadderAdmin)
+	router.POST("/v1/ladder/off", handleLadderAdmin)
+	router.POST("/v1/ladder/level", handleLadderAdmin)
+	// 工具路由: 任务分类 -> 收窄 MCP 工具 -> 可选换模型。
+	router.GET("/v1/toolrouter", handleToolRouterAdmin)
+	router.POST("/v1/toolrouter", handleToolRouterAdmin)
+	router.POST("/v1/toolrouter/on", handleToolRouterAdmin)
+	router.POST("/v1/toolrouter/off", handleToolRouterAdmin)
 	router.GET(cockpitQuotaPath, s.handleCockpitQuota)
 	router.POST("/v1/cockpit/auth/reset", s.handleResetAuthState)
 	router.POST("/v1/cockpit/accounts/reset-scheduler", s.handleResetSchedulerState)
