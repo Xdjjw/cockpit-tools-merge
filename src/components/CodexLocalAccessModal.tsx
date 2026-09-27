@@ -11,6 +11,7 @@ import {
   FolderPlus,
   Gauge,
   KeyRound,
+  Network,
   Power,
   RefreshCw,
   Search,
@@ -82,6 +83,8 @@ import { CodexImageForwardConfig } from "./CodexImageForwardConfig";
 import { buildGrokMemberRowAccounts, CodexGrokBuildQuotaChip, selectCodexLocalAccessMemberRows } from "./codex/codexGrokMemberRows";
 import { PaginationControls } from "./PaginationControls";
 import { CodexStatsRangePicker } from "./CodexStatsRangePicker";
+import { CodexLocalAccessLadderButton } from "./CodexLocalAccessLadderButton";
+import { CodexLocalAccessToolRouterPanel } from "./CodexLocalAccessToolRouterPanel";
 import { queryCodexLocalAccessStats } from "../services/codexLocalAccessService";
 import {
   type CodexStatsRangeKey,
@@ -2236,6 +2239,7 @@ export function CodexLocalAccessModal({
                             <SlidersHorizontal size={14} />
                           </button>
                         )}
+                        <CodexLocalAccessLadderButton disabled={saving || testing || starting} />
                       </>
                     )}
                     {collection && (
@@ -2356,6 +2360,23 @@ export function CodexLocalAccessModal({
                 <span>{notice}</span>
               </div>
             )}
+
+            {/* 工具路由: 按任务类型收窄 MCP 工具并可选换模型。
+                折叠收起, 避免默认占用主视图空间。 */}
+            <section className="codex-local-access-section codex-local-access-section-surface">
+              <details>
+                <summary
+                  className="codex-local-access-section-title"
+                  style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+                >
+                  <Network size={16} />
+                  <span>{t("codex.localAccess.toolRouterTitle", "工具路由")}</span>
+                </summary>
+                <div style={{ marginTop: 10 }}>
+                  <CodexLocalAccessToolRouterPanel />
+                </div>
+              </details>
+            </section>
 
             {!isMembersMode && (
               <section className="codex-local-access-section codex-local-access-section-surface codex-local-access-summary-block">
@@ -2992,6 +3013,7 @@ export function CodexLocalAccessModal({
                             <SlidersHorizontal size={14} />
                           </button>
                         )}
+                        <CodexLocalAccessLadderButton disabled={saving || testing || starting} />
                       </>
                     )}
                   </div>

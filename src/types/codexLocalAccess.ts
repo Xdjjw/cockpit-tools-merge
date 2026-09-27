@@ -533,3 +533,61 @@ export interface CodexInstanceGatewayView {
   logApiKeyId: string;
   lastError: string | null;
 }
+
+// ---------- 本分支自有: 破甲阶梯 ----------
+
+/**
+ * 破甲阶梯状态。
+ *
+ * 与 shield 的混淆档位是两套语义: shield 是静态混淆等级, ladder 是
+ * "被拒就升级并重发"的降级链(0-4)。level 由 sidecar 在命中拦截时自动升级,
+ * 也会写回同一个状态文件, 所以这里展示的可能是自动升上去的层。
+ */
+export interface CodexLocalAccessLadderState {
+  enabled: boolean;
+  /** 当前生效层: 0 直通 / 1 注入指令 / 2 关键词改写 / 3 中性化重写 / 4 目标抽象化 */
+  level: number;
+  /** 非流式被拒后是否静默升级重发 */
+  autoRetry: boolean;
+  /** 单次请求允许的升级次数上限 */
+  maxRetries: number;
+  /** 阶梯顶端; 到顶后不再升级, 如实报错 */
+  maxLevel: number;
+}
+
+// ---------- 本分支自有: 工具路由 ----------
+
+/**
+ * 工具路由档案: 某一类任务允许摆出哪些 MCP 工具, 以及用哪个模型。
+ *
+ * 注意 proxy 是 HTTP 中继, 它不执行工具。这里的 allow 只决定"少摆出来",
+ * 不能"凭空变出来" —— 客户端没注册的 MCP 工具无法靠配置获得。
+ */
+export interface CodexLocalAccessToolProfile {
+  id: string;
+  label: string;
+  /** 空数组 = 全部放行(不裁剪)。这是保守默认, 不要改成白名单。 */
+  allowNamespaces: string[];
+  /** 优先于白名单, 命中即移除 */
+  denyNamespaces: string[];
+  /** 该任务类型要用的模型; 空字符串表示不改模型 */
+  model: string;
+}
+
+/** 分类规则: class 是任务类型, pattern 是正则, weight 是同类内的相对强度。 */
+export interface CodexLocalAccessToolRule {
+  class: string;
+  pattern: string;
+  weight: number;
+}
+
+/** 工具路由配置。 */
+export interface CodexLocalAccessToolRouterState {
+  enabled: boolean;
+  /** 独立开关: 裁剪和换模型可以分开用 */
+  modelRouting: boolean;
+  /** 分类不出结果时用的档案 ID; 必须保守(不裁剪) */
+  defaultProfile: string;
+  profiles: CodexLocalAccessToolProfile[];
+  rules: CodexLocalAccessToolRule[];
+}
