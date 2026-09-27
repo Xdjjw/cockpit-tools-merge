@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 
+	"log"
+
 	"net/http"
 	"net/url"
 
@@ -133,7 +135,22 @@ func (s *relayServer) handleExecutorBody(c *gin.Context, spec *apiKeySpec, body 
 		return
 	}
 
+	// 工具路由分两步, 顺序不能颠倒:
+	//  1. 在这里先分类 —— 此时用户文本还是原文, ladder 的 L3 词表替换还没发生,
+	//     分类结果最准。
+	//  2. body 改写全部结束后再裁 tools —— 历史清理会重建 input 树,
+	//     提前裁进去的嵌套 tools 字段会被重编码。
+	toolDecision := toolRouterDecide(body)
+	ladderResponses := ladderEnabled() && sourceFormatEqual(sourceFormat, sdktranslator.FormatOpenAIResponse)
+
 	if spec.ProviderGateway != nil {
+		// Gateway 分支会提前 return, 到不了下面的常规改写点, 所以这里补齐。
+		// 流式就地改写并封顶 L3(L4 的占位符依赖还原表整包回填, 流式没有该时机);
+		// 非流式交给 handleProviderGatewayRequest 的阶梯闭环逐轮改写, 这里不动 body。
+		if ladderResponses && requestBodyStream(body) {
+			body = ladderProcessForStream(body, currentLadderLevel())
+		}
+		body, model = s.toolRouterApplyDecision(spec, body, model, toolDecision)
 		s.handleProviderGatewayRequest(c, spec.ProviderGateway, body, model, sourceFormat, fixedAlt)
 		return
 	}
@@ -144,9 +161,29 @@ func (s *relayServer) handleExecutorBody(c *gin.Context, spec *apiKeySpec, body 
 	}
 	stream := requestBodyStream(body) && fixedAlt != "responses/compact"
 	if stream {
+		// 流式不做静默重试(正文落地后无法收回), 但按当前层做一次分级改写,
+		// 让上一次被拦截时升上去的层级真正作用到这次请求上。
+		if ladderResponses {
+			// 必须走流式变体: L4 会把真实目标换成占位符并依赖还原表回填,
+			// 而流式增量帧一落地就发出去了, 没有整包回填的时机 ——
+			// 直接用 ladderProcess 会把占位符泄漏给用户。该变体封顶在 L3。
+			if rewritten := ladderProcessForStream(body, currentLadderLevel()); string(rewritten) != string(body) {
+				// 日志报真正生效的层, 而不是封顶值 —— 否则用户设 L1 却看到 L3。
+				applied := currentLadderLevel()
+				if applied > ladderStreamMaxLevel() {
+					applied = ladderStreamMaxLevel()
+				}
+				log.Printf("[ladder] stream request rewritten at L%d (%d bytes)", applied, len(rewritten))
+				body = rewritten
+			}
+		}
+		// 改写结束, 裁工具。
+		body, model = s.toolRouterApplyDecision(spec, body, model, toolDecision)
 		s.handleStream(c, body, model, sourceFormat, alt, executionProviders())
 		return
 	}
+	// 非流式的阶梯改写/重发在 handleNonStream 内部由 ladder 闭环完成。
+	body, model = s.toolRouterApplyDecision(spec, body, model, toolDecision)
 	s.handleNonStream(c, body, model, sourceFormat, alt, executionProviders())
 }
 
