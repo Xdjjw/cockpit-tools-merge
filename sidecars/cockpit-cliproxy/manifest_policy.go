@@ -115,6 +115,8 @@ type manifest struct {
 	// AccountConcurrencyWaitMs 账号并发达到上限后的等待时长（毫秒）；0 表示不等待，直接拒绝。
 	AccountConcurrencyWaitMs int   `json:"accountConcurrencyWaitMs"`
 	DebugLogs                *bool `json:"debugLogs,omitempty"`
+	// Shield 是本分支自有的请求混淆/拦截模块配置，定义见 shield.go。
+	Shield *shieldConfig `json:"shield,omitempty"`
 
 	apiKeyByValue     map[string]*apiKeySpec
 	accountByID       map[string]*accountSpec

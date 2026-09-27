@@ -384,13 +384,43 @@ func registerManifestCodexTokenAuths(
 }
 
 func readManifestCodexTokenAuth(account *accountSpec, authDir, path string) (*coreauth.Auth, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read manifest token auth file %s: %w", path, err)
-	}
+	// 读取此处有两个已知陷阱, 都不能忽略:
+	//
+	//  1. json.Unmarshal("null", &map) 返回 nil error 却把 map 置成 nil,
+	//     随后 metadata["..."] = 的赋值会 panic("assignment to entry in nil map")。
+	//     这条路径在 registerManifestCodexTokenAuths 里属于启动期逻辑,
+	//     gin.Recovery() 覆盖不到 —— 一个内容为 null 的认证文件会让 sidecar 启动即崩。
+	//  2. 认证刷新器可能通过 truncate/write 替换文件, 此时会短暂读到空内容或半截
+	//     JSON, 直接失败会造成偶发性的启动/选择失败。
+	//
+	// 所以: 对"空/半截"这类瞬时状态重试, 其它语法错误立即失败(不掩盖真实问题)。
 	metadata := make(map[string]any)
-	if err = json.Unmarshal(data, &metadata); err != nil {
-		return nil, fmt.Errorf("parse manifest token auth file %s: %w", path, err)
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read manifest token auth file %s: %w", path, err)
+		}
+		metadata = make(map[string]any)
+		if err := json.Unmarshal(data, &metadata); err == nil {
+			if metadata == nil {
+				lastErr = fmt.Errorf("auth file is JSON null, not an object")
+				break
+			}
+			lastErr = nil
+			break
+		} else {
+			lastErr = err
+		}
+		trimmed := strings.TrimSpace(string(data))
+		if trimmed != "" && !errors.Is(lastErr, io.ErrUnexpectedEOF) &&
+			!strings.Contains(lastErr.Error(), "unexpected end of JSON input") {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if lastErr != nil {
+		return nil, fmt.Errorf("parse manifest token auth file %s: %w", path, lastErr)
 	}
 	provider := manifestTokenAuthProvider(account, metadata)
 	if provider == "" {
