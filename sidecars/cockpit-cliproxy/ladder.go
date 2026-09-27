@@ -1335,10 +1335,16 @@ func (s *relayServer) ladderExecuteNonStream(
 	sourceFormat sdktranslator.Format,
 	alt string,
 	startLevel int,
+	providers []string,
 ) (int, bool, []byte, http.Header) {
 	cfg := currentLadderConfig()
 	if !ladderEnabled() {
 		return startLevel, true, nil, nil
+	}
+	// provider 必须由调用方传入: v1.3.60 支持多 provider 与模型路由,
+	// 在这里硬编码 "codex" 会把路由到原生 provider 的请求强行送回 codex。
+	if len(providers) == 0 {
+		providers = executionProviders()
 	}
 	// "是否改写"与"被拒后是否重发"是两件事, 必须解耦:
 	// AutoRetry 只决定重发预算, 改写照做。
@@ -1358,7 +1364,7 @@ func (s *relayServer) ladderExecuteNonStream(
 		startedAt := time.Now()
 		s.emitExecutorDiagnostic(c, "executor_started", model, "execute", startedAt, "")
 		stopWaitLogger := s.startExecutorWaitLogger(c, model, "execute", startedAt)
-		resp, err := s.runtime.Execute(relayContext(c), []string{"codex"}, req, opts)
+		resp, err := s.runtime.Execute(relayContext(c), providers, req, opts)
 		stopWaitLogger()
 		if err != nil {
 			s.emitExecutorDiagnostic(c, "executor_failed", model, "execute", startedAt, err.Error())

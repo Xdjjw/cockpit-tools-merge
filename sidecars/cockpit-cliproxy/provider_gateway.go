@@ -382,6 +382,24 @@ func (s *relayServer) handleProviderGatewayRequest(c *gin.Context, gateway *prov
 			}
 		}
 	}
+	// 非流式 + Responses wire API + ladder 启用: 交给阶梯的"被拒即升级重发"闭环。
+	//
+	// 插在这里而不是函数开头, 是因为此处 body 已经完成上游化处理(历史投影、
+	// 多智能体改写、调用 ID 归一、工具顺序修复)。闭环每轮只在**这个已处理好的
+	// 基础上**做文本层改写再重发, 不需要(也不应该)重跑那些结构级变换 ——
+	// ladder 只替换字符串叶子, 不会破坏前面建立的形状。
+	//
+	// 限定 wireAPI == "responses": chat_completions 会把 body 转成另一种协议,
+	// 而 ladder 的词表与抽象只认 Responses 形态, 转换后再改会错位。
+	if !stream && wireAPI == "responses" &&
+		ladderEnabled() && sourceFormatEqual(sourceFormat, sdktranslator.FormatOpenAIResponse) {
+		// multiAgentV2Optimized 必须带过去: 请求侧被改写过的 collaboration 命名空间
+		// 要在响应侧还原, 否则客户端会看到 "collaboration-optimize__send_message"
+		// 这种中间态名字。
+		s.providerGatewayLadderNonStream(c, gateway, body, upstreamModel, sourceFormat, multiAgentV2Optimized)
+		return
+	}
+
 	upstreamPath := "/v1/responses"
 	upstreamBody := rewriteProviderGatewayBodyModel(body, upstreamModel)
 	if wireAPI == "chat_completions" {
@@ -885,6 +903,31 @@ func providerGatewayPathSegmentIsVersion(segment string) bool {
 }
 
 func (s *relayServer) handleNonStream(c *gin.Context, body []byte, model string, sourceFormat sdktranslator.Format, alt string, providers []string) {
+	// ladder 接管时由它执行层级改写与"被拒即升级重发"的闭环。
+	// AutoRetry 只决定"被拒后是否重发", 不参与"是否改写"的判断 ——
+	// 关掉自动重试不该让整条阶梯的改写一起失效。
+	if ladderEnabled() && sourceFormatEqual(sourceFormat, sdktranslator.FormatOpenAIResponse) {
+		_, ok, payload, headers := s.ladderExecuteNonStream(
+			c, body, model, sourceFormat, alt, currentLadderLevel(), providers)
+		if !ok {
+			// ladder 内部已判定无可用结果(非可重试错误, 或走完全程仍被拒)。
+			writeAPIError(c, http.StatusBadGateway, "upstream request failed", "bad_gateway")
+			return
+		}
+		if headers != nil {
+			writeUpstreamHeaders(c.Writer.Header(), headers)
+		}
+		contentType := ""
+		if headers != nil {
+			contentType = headers.Get("Content-Type")
+		}
+		if contentType == "" {
+			contentType = "application/json"
+		}
+		c.Data(http.StatusOK, contentType, payload)
+		return
+	}
+
 	req, opts := buildExecutorRequest(c, body, model, sourceFormat, alt, false)
 	startedAt := time.Now()
 	s.emitExecutorDiagnostic(c, "executor_started", model, "execute", startedAt, "")
@@ -909,7 +952,16 @@ func (s *relayServer) handleNonStream(c *gin.Context, body []byte, model string,
 	if contentType == "" {
 		contentType = "application/json"
 	}
-	c.Data(http.StatusOK, contentType, resp.Payload)
+	// 出口兜底: 上游以"辅助性措辞"给出拒答时, 在这里换成中性续接,
+	// 避免把拒绝文本当成正常产物写进客户端会话历史。
+	payload := resp.Payload
+	if shieldEnabled() {
+		if rewritten, changed := shieldRewriteJSONPayload(payload); changed {
+			payload = rewritten
+			log.Printf("[shield] non-stream refusal rewritten (%d bytes)", len(payload))
+		}
+	}
+	c.Data(http.StatusOK, contentType, payload)
 }
 
 func (s *relayServer) handleStream(c *gin.Context, body []byte, model string, sourceFormat sdktranslator.Format, alt string, providers []string) {
