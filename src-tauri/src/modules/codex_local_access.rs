@@ -9,6 +9,8 @@ include!("codex_local_access_request_logs.rs");
 include!("codex_local_access_profile_takeover.rs");
 include!("codex_local_access_takeover_maintenance.rs");
 include!("codex_local_access_sidecar_config.rs");
+// 本分支自有: 破甲阶梯 / 工具路由的持久化状态读写。
+include!("codex_local_access_ladder.rs");
 include!("codex_local_access_automatic_routing.rs");
 include!("codex_local_access_sidecar_runtime.rs");
 include!("codex_local_access_collection.rs");

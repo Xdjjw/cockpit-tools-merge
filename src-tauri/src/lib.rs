@@ -1178,6 +1178,13 @@ pub fn run() {
             commands::codex::codex_local_access_test,
             commands::codex::codex_local_access_chat_test,
             commands::codex::codex_local_access_chat_test_stream,
+            // 本分支自有: 破甲阶梯与工具路由
+            commands::codex::codex_local_access_ladder_state,
+            commands::codex::codex_local_access_update_ladder,
+            commands::codex::codex_local_access_update_ladder_level,
+            commands::codex::codex_local_access_tool_router_state,
+            commands::codex::codex_local_access_update_tool_router,
+            commands::codex::codex_local_access_update_tool_router_enabled,
             // GitHub Copilot Commands
             commands::github_copilot::list_github_copilot_accounts,
             commands::github_copilot::delete_github_copilot_account,
