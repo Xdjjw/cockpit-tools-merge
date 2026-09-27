@@ -620,6 +620,58 @@ pub async fn codex_local_access_chat_test_stream(
         .await
 }
 
+// ---------- 本分支自有: 破甲阶梯 ----------
+
+/// 查询破甲阶梯当前状态(启用、当前层、自动重试策略)。
+#[tauri::command]
+pub fn codex_local_access_ladder_state(
+) -> Result<codex_local_access::CodexLocalAccessLadderState, String> {
+    codex_local_access::local_access_ladder_state()
+}
+
+/// 更新破甲阶梯的启用状态与自动重试策略。当前层保持不变。
+#[tauri::command]
+pub async fn codex_local_access_update_ladder(
+    enabled: bool,
+    auto_retry: bool,
+    max_retries: u8,
+) -> Result<codex_local_access::CodexLocalAccessLadderState, String> {
+    codex_local_access::update_local_access_ladder(enabled, auto_retry, max_retries).await
+}
+
+/// 手动锁定当前层(0-4)。用于在前端直接指定某一层试效果。
+#[tauri::command]
+pub async fn codex_local_access_update_ladder_level(
+    level: u8,
+) -> Result<codex_local_access::CodexLocalAccessLadderState, String> {
+    codex_local_access::update_local_access_ladder_level(level).await
+}
+
+// ---------- 本分支自有: 工具路由 ----------
+
+/// 查询工具路由配置。返回 None 表示尚未初始化(从面板保存一次即可创建)。
+#[tauri::command]
+pub fn codex_local_access_tool_router_state(
+) -> Result<Option<codex_local_access::CodexLocalAccessToolRouterState>, String> {
+    codex_local_access::local_access_tool_router_state()
+}
+
+/// 保存整份工具路由配置(任务档案 + 分类规则)。
+#[tauri::command]
+pub async fn codex_local_access_update_tool_router(
+    state: codex_local_access::CodexLocalAccessToolRouterState,
+) -> Result<codex_local_access::CodexLocalAccessToolRouterState, String> {
+    codex_local_access::update_local_access_tool_router(state).await
+}
+
+/// 只切工具路由总开关, 保留已配置的档案与规则。
+#[tauri::command]
+pub async fn codex_local_access_update_tool_router_enabled(
+    enabled: bool,
+) -> Result<codex_local_access::CodexLocalAccessToolRouterState, String> {
+    codex_local_access::update_local_access_tool_router_enabled(enabled).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
