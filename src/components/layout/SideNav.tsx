@@ -1,4 +1,4 @@
-import { Settings, Rocket, GaugeCircle, LayoutGrid, SlidersHorizontal, FileText, ChevronDown, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
+import { Settings, Rocket, GaugeCircle, LayoutGrid, SlidersHorizontal, FileText, ChevronDown, PanelLeftClose, PanelLeftOpen, ShieldCheck, Wrench } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
@@ -45,11 +45,11 @@ interface FlyingRocket {
   x: number;
 }
 
-type SideNavEntryId = PlatformLayoutEntryId | ApiRelayLayoutEntryId;
+type SideNavEntryId = PlatformLayoutEntryId | ApiRelayLayoutEntryId | 'workshop-entry';
 
 interface SideNavEntry {
   id: SideNavEntryId;
-  kind: 'platform' | 'api-relay';
+  kind: 'platform' | 'api-relay' | 'workshop';
   label: string;
   hidden: boolean;
   targetPlatformId: PlatformId | null;
@@ -88,6 +88,9 @@ const CLASSIC_NAV_SCALE_EPSILON = 0.004;
 const CLASSIC_NAV_SCROLL_EPSILON = 4;
 
 function renderEntryIcon(entry: SideNavEntry, size: number) {
+  if (entry.kind === 'workshop') {
+    return <Wrench className="nav-item-icon" size={size} />;
+  }
   if (entry.kind === 'api-relay') {
     return (
       <img
@@ -191,6 +194,9 @@ export function SideNav({
     : PAGE_PLATFORM_MAP[page] ?? null;
   const currentEntryId = useMemo<SideNavEntryId | null>(
     () => {
+      if (page === 'workshop') {
+        return 'workshop-entry';
+      }
       if (page === 'api-relay') {
         return API_RELAY_LAYOUT_ENTRY_ID;
       }
@@ -268,12 +274,21 @@ export function SideNav({
         };
       })
       .filter((entry): entry is SideNavEntry => !!entry);
+    const workshopEntry: SideNavEntry = {
+      id: 'workshop-entry',
+      kind: 'workshop',
+      label: t('nav.workshop', '工坊'),
+      hidden: false,
+      targetPlatformId: null,
+      platformIds: [],
+      group: null,
+    };
 
     if (!apiRelayEntryVisible) {
-      return platformEntries;
+      return [workshopEntry, ...platformEntries];
     }
 
-    const result = [...platformEntries];
+    const result = [workshopEntry, ...platformEntries];
     const insertIndex = Math.max(0, Math.min(apiRelayEntryOrder, result.length));
     result.splice(insertIndex, 0, {
       id: API_RELAY_LAYOUT_ENTRY_ID,
@@ -298,7 +313,7 @@ export function SideNav({
 
   const sidebarVisibleEntries = useMemo(
     () => orderedEntries.filter((entry) =>
-      entry.kind === 'api-relay' || sidebarSet.has(entry.id as PlatformLayoutEntryId),
+      entry.kind === 'api-relay' || entry.kind === 'workshop' || sidebarSet.has(entry.id as PlatformLayoutEntryId),
     ),
     [orderedEntries, sidebarSet],
   );
@@ -318,6 +333,10 @@ export function SideNav({
   }, [setPage]);
 
   const navigateToEntry = useCallback((entry: SideNavEntry) => {
+    if (entry.kind === 'workshop') {
+      setPage('workshop');
+      return;
+    }
     if (entry.kind === 'api-relay') {
       setPage('api-relay');
       return;

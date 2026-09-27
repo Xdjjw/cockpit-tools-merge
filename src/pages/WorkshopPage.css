@@ -1,0 +1,409 @@
+/* DevConduit「工坊」页面样式 */
+
+.workshop-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.workshop-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
+  padding-bottom: 8px;
+}
+
+.workshop-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary, #9aa0a6);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.workshop-tabs button:hover {
+  background: rgba(128, 128, 128, 0.1);
+}
+
+.workshop-tabs button.is-active {
+  background: rgba(66, 133, 244, 0.12);
+  color: #4285f4;
+  font-weight: 600;
+}
+
+.workshop-tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.workshop-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.workshop-toolbar label {
+  font-size: 12px;
+  color: var(--text-secondary, #9aa0a6);
+  margin-right: 2px;
+}
+
+.workshop-separator {
+  width: 1px;
+  height: 18px;
+  background: rgba(128, 128, 128, 0.3);
+  margin: 0 6px;
+}
+
+.ws-search {
+  min-width: 260px;
+  flex: 1 1 260px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
+  border-radius: 8px;
+  background: var(--bg-input, var(--bg-card));
+  color: var(--text);
+  font-size: 12px;
+}
+.workshop-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workshop-section-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.workshop-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.workshop-card {
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(128, 128, 128, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+}
+
+/* 网格内卡片等高；footer 推到底部保证按钮对齐（多行 subtitle 不再错位） */
+.workshop-card-grid {
+  align-items: stretch;
+}
+
+.workshop-card .ws-card-foot {
+  margin-top: auto;
+}
+
+.workshop-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workshop-card-head strong {
+  font-size: 13px;
+}
+
+.ws-badge {
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: rgba(66, 133, 244, 0.15);
+  color: #4285f4;
+  white-space: nowrap;
+}
+
+.ws-badge-warn {
+  background: rgba(255, 152, 0, 0.15);
+  color: #f57c00;
+}
+
+.ws-card-sub {
+  font-size: 12px;
+  color: var(--text-secondary, #9aa0a6);
+  line-height: 1.45;
+}
+
+.ws-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.ws-source {
+  font-size: 11px;
+  color: var(--text-secondary, #9aa0a6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-filename {
+  font-size: 10px;
+  color: var(--text-secondary, #9aa0a6);
+  font-family: monospace;
+}
+
+.ws-empty {
+  font-size: 12px;
+  color: var(--text-secondary, #9aa0a6);
+  padding: 12px;
+  border: 1px dashed rgba(128, 128, 128, 0.3);
+  border-radius: 8px;
+}
+
+.workshop-error {
+  background: rgba(234, 67, 53, 0.1);
+  color: #ea4335;
+  border: 1px solid rgba(234, 67, 53, 0.35);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.workshop-notice {
+  background: rgba(52, 168, 83, 0.1);
+  color: #34a853;
+  border: 1px solid rgba(52, 168, 83, 0.35);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.workshop-status-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(66, 133, 244, 0.3);
+  background: rgba(66, 133, 244, 0.06);
+  border-radius: 10px;
+}
+
+.workshop-status-card > div { flex: 1; }
+
+.ws-card-title { font-size: 13px; font-weight: 600; }
+
+.workshop-backup-list,
+.workshop-mcp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ws-backup-row,
+.ws-mcp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.03);
+}
+
+.ws-backup-id { font-family: monospace; font-size: 12px; flex: 1; }
+
+.ws-backup-action {
+  font-size: 11px;
+  color: var(--text-secondary, #9aa0a6);
+}
+
+.ws-backup-time { font-size: 11px; color: var(--text-secondary, #9aa0a6); }
+
+.ws-mcp-main { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+
+.ws-mcp-main strong { font-size: 13px; }
+
+.ws-mcp-actions { display: flex; gap: 6px; }
+
+.ws-mono {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text-secondary, #9aa0a6);
+  word-break: break-all;
+}
+
+.ws-host {
+  font-size: 11px;
+  color: #34a853;
+}
+
+.workshop-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.workshop-modal-box {
+  width: min(680px, 92vw);
+  max-height: 84vh;
+  overflow-y: auto;
+  background: var(--bg-primary, #1e1e1e);
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workshop-modal-box h3 { margin: 0 0 4px; }
+
+.workshop-modal-box label { font-size: 12px; color: var(--text-secondary, #9aa0a6); }
+
+.workshop-modal-box input,
+.workshop-modal-box textarea {
+  padding: 8px 10px;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  font-size: 13px;
+}
+
+.workshop-modal-box textarea { font-family: monospace; resize: vertical; }
+
+.workshop-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+/* rules 徽标 + 确认弹窗文件清单 */
+.ws-badge-rules {
+  background: rgba(156, 39, 176, 0.18);
+  color: #ba68c8;
+  font-weight: 700;
+}
+
+.ws-confirm-files {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.ws-confirm-file {
+  font-family: monospace;
+  font-size: 11.5px;
+  word-break: break-all;
+  color: var(--text-secondary, #c5c5c5);
+}
+
+.ws-confirm-file::before {
+  content: "▸ ";
+  color: #4285f4;
+}
+
+/* 卡片头防溢出 + 徽标组 */
+.ws-card-title {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.ws-badge-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ws-badge-on {
+  background: rgba(52, 168, 83, 0.18);
+  color: #34a853;
+  font-weight: 700;
+}
+
+.workshop-card.is-active {
+  border-color: rgba(52, 168, 83, 0.55);
+  background: rgba(52, 168, 83, 0.05);
+}
+
+.ws-current {
+  font-size: 12px;
+  font-weight: 400;
+  color: #34a853;
+}
+
+/* 折叠备份面板 + 页脚 */
+.ws-backup-panel { margin-top: 4px; }
+
+.ws-backup-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.03);
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ws-backup-header:hover { background: rgba(128, 128, 128, 0.07); }
+
+.ws-backup-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-secondary, #9aa0a6);
+  margin-left: auto;
+}
+
+.ws-chevron { transition: transform 0.15s ease; }
+.ws-chevron.is-open { transform: rotate(180deg); }
+
+.ws-backup-row {
+  justify-content: flex-start;
+}
+
+.ws-backup-row .ws-backup-id {
+  flex: 1;
+  margin-left: 8px;
+  opacity: 0.7;
+}
+
+.ws-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 0 4px;
+  font-size: 11px;
+  color: var(--text-secondary, #9aa0a6);
+  opacity: 0.75;
+}
+
+.ws-footer-dot { opacity: 0.5; }

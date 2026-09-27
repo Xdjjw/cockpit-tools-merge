@@ -1,0 +1,1825 @@
+use super::mcp::{json_to_toml_item, mcp_summary, sort_managed_mcp_servers, toml_item_to_json};
+use super::skills::{
+    copy_dir_recursive, move_dir_replace, normalize_legacy_zip_skill_dirs, read_skill_frontmatter,
+    read_skill_metadata, sanitize_dir_name, scan_skill_dir, sort_managed_skills,
+};
+use super::types::{
+    ManagedMcpServer, ManagedSkill, SkillsMcpActionResult, SkillsMcpImportPreview, SkillsMcpState,
+};
+use crate::devconduit::ccswitch::default_ccswitch_db_path;
+use crate::devconduit::constants::MAX_SKILL_ZIP_BYTES;
+use crate::devconduit::error::{CodexxError, Result};
+use crate::devconduit::file_io::{
+    atomic_write, ensure_directory, io_err, parse_toml_document, read_to_string_if_exists,
+    write_json, write_text,
+};
+use crate::devconduit::paths::{app_home, home_dir};
+use crate::devconduit::toml_utils::ensure_table;
+use crate::devconduit::tools::ToolId;
+use crate::devconduit::{now_rfc3339, open_db};
+use chrono::Local;
+use jsonc_parser::cst::{CstInputValue, CstRootNode};
+use rusqlite::{params, Connection, OpenFlags, TransactionBehavior};
+use serde_json::{Map, Value};
+use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::io::Cursor;
+use std::path::{Path, PathBuf};
+use toml_edit::Item;
+
+fn disabled_skills_dir(tool: ToolId) -> Result<PathBuf> {
+    Ok(app_home()?.join("disabled-skills").join(tool.as_str()))
+}
+
+fn mcp_config_path(tool: ToolId, config_dir: Option<String>) -> Result<PathBuf> {
+    match tool {
+        ToolId::Claude => Ok(home_dir()?.join(".claude.json")),
+        ToolId::Pi => crate::devconduit::pi::mcp_config_path(),
+        _ => tool.config_path(config_dir),
+    }
+}
+
+#[derive(Debug)]
+struct OptionalMcpConfigSnapshot {
+    path: PathBuf,
+    bytes: Option<Vec<u8>>,
+}
+
+fn capture_optional_mcp_config(path: PathBuf) -> Result<OptionalMcpConfigSnapshot> {
+    let bytes = match fs::symlink_metadata(&path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            return Err(CodexxError::Config(format!(
+                "Pi MCP 配置不是普通文件: {}",
+                path.display()
+            )));
+        }
+        Ok(_) => Some(fs::read(&path).map_err(|error| io_err(&path, error))?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(io_err(&path, error)),
+    };
+    Ok(OptionalMcpConfigSnapshot { path, bytes })
+}
+
+fn restore_optional_mcp_config(snapshot: &OptionalMcpConfigSnapshot) -> Result<()> {
+    match &snapshot.bytes {
+        Some(bytes) => atomic_write(&snapshot.path, bytes),
+        None => match fs::symlink_metadata(&snapshot.path) {
+            Ok(metadata) if metadata.file_type().is_symlink() || metadata.is_file() => {
+                fs::remove_file(&snapshot.path).map_err(|error| io_err(&snapshot.path, error))
+            }
+            Ok(_) => Err(CodexxError::Config(format!(
+                "Pi MCP 回滚目标被目录占用: {}",
+                snapshot.path.display()
+            ))),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(io_err(&snapshot.path, error)),
+        },
+    }
+}
+
+fn source_label(tool: ToolId) -> String {
+    tool.label().to_string()
+}
+
+fn json_mcp_object(value: &Value, tool: ToolId) -> Option<&Map<String, Value>> {
+    match tool {
+        ToolId::Claude => value.get("mcpServers")?.as_object(),
+        ToolId::Zcode => value.get("mcp")?.get("servers")?.as_object(),
+        ToolId::Kilo => value.get("mcp")?.as_object(),
+        ToolId::Pi => value.get("mcpServers")?.as_object(),
+        ToolId::Codex | ToolId::Grok => None,
+    }
+}
+
+fn parse_jsonc_config(path: &Path, text: &str) -> Result<Value> {
+    if text.trim().is_empty() {
+        return Ok(Value::Object(Map::new()));
+    }
+    CstRootNode::parse(text, &Default::default())
+        .map_err(|error| {
+            CodexxError::Config(format!("JSONC 解析失败 {}: {error}", path.display()))
+        })?
+        .to_serde_value()
+        .ok_or_else(|| CodexxError::Config(format!("JSONC 配置没有有效根节点: {}", path.display())))
+}
+
+fn kilo_mcp_to_internal(config: &Value) -> Value {
+    let Some(server) = config.as_object() else {
+        return config.clone();
+    };
+    let mut normalized = Map::new();
+    if let Some(enabled) = server.get("enabled").and_then(Value::as_bool) {
+        normalized.insert("enabled".to_string(), Value::Bool(enabled));
+    }
+    if server.get("type").and_then(Value::as_str) == Some("remote") || server.get("url").is_some() {
+        if let Some(url) = server.get("url").cloned() {
+            let transport = url
+                .as_str()
+                .filter(|url| url.trim_end_matches('/').ends_with("/sse"))
+                .map(|_| "sse")
+                .unwrap_or("http");
+            normalized.insert("type".to_string(), Value::String(transport.to_string()));
+            normalized.insert("url".to_string(), url);
+        }
+        if let Some(headers) = server.get("headers").cloned() {
+            normalized.insert("headers".to_string(), headers);
+        }
+    } else if let Some(command) = server.get("command").and_then(Value::as_array) {
+        if let Some(executable) = command.first().and_then(Value::as_str) {
+            normalized.insert("command".to_string(), Value::String(executable.to_string()));
+            if command.len() > 1 {
+                normalized.insert("args".to_string(), Value::Array(command[1..].to_vec()));
+            }
+        }
+        if let Some(environment) = server.get("environment").cloned() {
+            normalized.insert("env".to_string(), environment);
+        }
+    }
+    if let Some(timeout) = server.get("timeout").cloned() {
+        normalized.insert("timeout".to_string(), timeout);
+    }
+    Value::Object(normalized)
+}
+
+fn kilo_mcp_from_internal(config: &Value) -> Result<Value> {
+    let server = config
+        .as_object()
+        .ok_or_else(|| CodexxError::Config("Kilo MCP 配置必须是 JSON object".to_string()))?;
+    let mut normalized = Map::new();
+    if let Some(url) = server.get("url").and_then(Value::as_str) {
+        normalized.insert("type".to_string(), Value::String("remote".to_string()));
+        normalized.insert("url".to_string(), Value::String(url.to_string()));
+        if let Some(headers) = server
+            .get("headers")
+            .or_else(|| server.get("http_headers"))
+            .cloned()
+        {
+            normalized.insert("headers".to_string(), headers);
+        }
+    } else {
+        let command = server
+            .get("command")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| CodexxError::Config("Kilo 本地 MCP 缺少 command".to_string()))?;
+        let mut command_line = vec![Value::String(command.to_string())];
+        if let Some(args) = server.get("args").and_then(Value::as_array) {
+            command_line.extend(args.iter().cloned());
+        }
+        normalized.insert("type".to_string(), Value::String("local".to_string()));
+        normalized.insert("command".to_string(), Value::Array(command_line));
+        if let Some(environment) = server
+            .get("env")
+            .or_else(|| server.get("environment"))
+            .cloned()
+        {
+            normalized.insert("environment".to_string(), environment);
+        }
+    }
+    normalized.insert("enabled".to_string(), Value::Bool(true));
+    if let Some(timeout) = server.get("timeout").cloned() {
+        normalized.insert("timeout".to_string(), timeout);
+    }
+    Ok(Value::Object(normalized))
+}
+
+fn json_to_cst_input(value: &Value) -> CstInputValue {
+    match value {
+        Value::Null => CstInputValue::Null,
+        Value::Bool(value) => CstInputValue::Bool(*value),
+        Value::Number(value) => CstInputValue::Number(value.to_string()),
+        Value::String(value) => CstInputValue::String(value.clone()),
+        Value::Array(values) => {
+            CstInputValue::Array(values.iter().map(json_to_cst_input).collect())
+        }
+        Value::Object(values) => CstInputValue::Object(
+            values
+                .iter()
+                .map(|(key, value)| (key.clone(), json_to_cst_input(value)))
+                .collect(),
+        ),
+    }
+}
+
+fn pi_mcp_from_internal(config: &Value) -> Result<Value> {
+    let mut normalized = config.clone();
+    let server = normalized
+        .as_object_mut()
+        .ok_or_else(|| CodexxError::Config("Pi MCP Server 配置必须是 object".to_string()))?;
+    let transport = server
+        .remove("type")
+        .and_then(|value| value.as_str().map(ToString::to_string));
+    server.remove("enabled");
+    server.remove("_everythingPatchSource");
+    if !server.contains_key("headers") {
+        if let Some(headers) = server.remove("http_headers") {
+            server.insert("headers".to_string(), headers);
+        }
+    } else {
+        server.remove("http_headers");
+    }
+    if transport.as_deref() == Some("sse")
+        && server.get("url").and_then(Value::as_str).is_some()
+        && !server.contains_key("httpTransport")
+    {
+        server.insert(
+            "httpTransport".to_string(),
+            Value::String("sse".to_string()),
+        );
+    }
+    Ok(normalized)
+}
+
+fn update_pi_mcp_jsonc(text: &str, id: &str, config: Option<&Value>) -> Result<String> {
+    let source = if text.trim().is_empty() { "{}\n" } else { text };
+    let root = CstRootNode::parse(source, &Default::default())
+        .map_err(|error| CodexxError::Config(format!("Pi MCP JSONC 解析失败: {error}")))?;
+    let root_object = root
+        .object_value()
+        .ok_or_else(|| CodexxError::Config("Pi MCP JSONC 根节点必须是 object".to_string()))?;
+    let servers = match root_object.get("mcpServers") {
+        Some(property) => property.object_value().ok_or_else(|| {
+            CodexxError::Config("Pi MCP JSONC 的 mcpServers 字段必须是 object".to_string())
+        })?,
+        None if config.is_none() => return Ok(source.to_string()),
+        None => root_object
+            .append("mcpServers", CstInputValue::Object(Vec::new()))
+            .object_value()
+            .expect("new mcpServers value is an object"),
+    };
+    match config {
+        Some(config) => {
+            let value = json_to_cst_input(&pi_mcp_from_internal(config)?);
+            if let Some(property) = servers.get(id) {
+                property.set_value(value);
+            } else {
+                servers.append(id, value);
+            }
+        }
+        None => {
+            if let Some(property) = servers.get(id) {
+                property.remove();
+            }
+        }
+    }
+    let mut output = root.to_string();
+    if !output.ends_with('\n') {
+        output.push('\n');
+    }
+    Ok(output)
+}
+
+fn update_kilo_jsonc(text: &str, id: &str, config: Option<&Value>) -> Result<String> {
+    let source = if text.trim().is_empty() { "{}\n" } else { text };
+    let root = CstRootNode::parse(source, &Default::default())
+        .map_err(|error| CodexxError::Config(format!("Kilo JSONC 解析失败: {error}")))?;
+    let root_object = root
+        .object_value()
+        .ok_or_else(|| CodexxError::Config("Kilo JSONC 根节点必须是 object".to_string()))?;
+    let mcp = match root_object.get("mcp") {
+        Some(property) => property.object_value().ok_or_else(|| {
+            CodexxError::Config("Kilo JSONC 的 mcp 字段必须是 object".to_string())
+        })?,
+        None if config.is_none() => return Ok(source.to_string()),
+        None => root_object
+            .append("mcp", CstInputValue::Object(Vec::new()))
+            .object_value()
+            .expect("new mcp value is an object"),
+    };
+    match config {
+        Some(config) => {
+            let value = json_to_cst_input(&kilo_mcp_from_internal(config)?);
+            if let Some(property) = mcp.get(id) {
+                property.set_value(value);
+            } else {
+                mcp.append(id, value);
+            }
+        }
+        None => {
+            if let Some(property) = mcp.get(id) {
+                property.remove();
+            }
+        }
+    }
+    let mut output = root.to_string();
+    if !output.ends_with('\n') {
+        output.push('\n');
+    }
+    Ok(output)
+}
+
+fn list_tool_mcp(tool: ToolId, config_dir: Option<String>) -> Result<Vec<ManagedMcpServer>> {
+    let config = mcp_config_path(tool, config_dir)?;
+    let text = read_to_string_if_exists(&config)?;
+    if text.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let configs = match tool {
+        ToolId::Codex | ToolId::Grok => {
+            let document = parse_toml_document(&config, &text)?;
+            let Some(table) = document.get("mcp_servers").and_then(|item| item.as_table()) else {
+                return Ok(Vec::new());
+            };
+            table
+                .iter()
+                .filter_map(|(id, item)| {
+                    item.is_table()
+                        .then(|| (id.to_string(), toml_item_to_json(item)))
+                })
+                .collect::<Vec<_>>()
+        }
+        ToolId::Claude | ToolId::Zcode | ToolId::Kilo | ToolId::Pi => {
+            let value = if tool == ToolId::Kilo {
+                parse_jsonc_config(&config, &text)?
+            } else {
+                serde_json::from_str::<Value>(&text)
+                    .map_err(|error| crate::devconduit::file_io::json_err(&config, error))?
+            };
+            json_mcp_object(&value, tool)
+                .map(|servers| {
+                    servers
+                        .iter()
+                        .map(|(id, config)| {
+                            (
+                                id.clone(),
+                                if tool == ToolId::Kilo {
+                                    kilo_mcp_to_internal(config)
+                                } else {
+                                    config.clone()
+                                },
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        }
+    };
+    Ok(configs
+        .into_iter()
+        .map(|(id, config)| {
+            let (transport, command, url, summary) = mcp_summary(&config);
+            ManagedMcpServer {
+                name: id.clone(),
+                id,
+                transport,
+                enabled: config
+                    .get("enabled")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true),
+                source: config
+                    .get("_everythingPatchSource")
+                    .and_then(Value::as_str)
+                    .unwrap_or_else(|| {
+                        config
+                            .as_object()
+                            .map(|_| tool.label())
+                            .unwrap_or("native config")
+                    })
+                    .to_string(),
+                summary,
+                command,
+                url,
+                config_json: config,
+                installed: true,
+            }
+        })
+        .collect())
+}
+
+fn mcp_targets(tool: ToolId) -> Result<HashMap<String, bool>> {
+    let connection = open_db()?;
+    let mut statement = connection
+        .prepare(
+            "SELECT resource_id, enabled FROM managed_mcp_targets
+             WHERE app_type = ?1",
+        )
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    let rows = statement
+        .query_map([tool.as_str()], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, bool>(1)?))
+        })
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    let mut targets = HashMap::new();
+    for row in rows {
+        let (id, enabled) = row.map_err(|error| CodexxError::Database(error.to_string()))?;
+        targets.insert(id, enabled);
+    }
+    Ok(targets)
+}
+
+fn set_resource_target(table: &str, tool: ToolId, id: &str, enabled: bool) -> Result<()> {
+    let table = match table {
+        "managed_mcp_targets" => "managed_mcp_targets",
+        "managed_skill_targets" => "managed_skill_targets",
+        _ => {
+            return Err(CodexxError::Database(
+                "invalid managed resource table".to_string(),
+            ))
+        }
+    };
+    let connection = open_db()?;
+    connection
+        .execute(
+            &format!(
+                "INSERT INTO {table} (app_type, resource_id, enabled, updated_at)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(app_type, resource_id) DO UPDATE SET
+                   enabled = excluded.enabled,
+                   updated_at = excluded.updated_at"
+            ),
+            params![tool.as_str(), id, enabled, now_rfc3339()],
+        )
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    Ok(())
+}
+
+fn save_mcp_resource(id: &str, name: &str, config: &Value) -> Result<()> {
+    let config = normalize_mcp_config_for_storage(config);
+    let connection = open_db()?;
+    connection
+        .execute(
+            "INSERT INTO managed_mcp_servers (id, name, server_config, enabled, updated_at)
+             VALUES (?1, ?2, ?3, 0, ?4)
+             ON CONFLICT(id) DO UPDATE SET
+               name = excluded.name,
+               server_config = excluded.server_config,
+               updated_at = excluded.updated_at",
+            params![
+                id,
+                name,
+                serde_json::to_string(&config).unwrap_or_else(|_| "{}".to_string()),
+                now_rfc3339(),
+            ],
+        )
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    Ok(())
+}
+
+fn save_mcp_resource_and_target(
+    id: &str,
+    name: &str,
+    config: &Value,
+    tool: ToolId,
+    enabled: bool,
+) -> Result<()> {
+    let config = normalize_mcp_config_for_storage(config);
+    let config_text =
+        serde_json::to_string(&config).map_err(|error| CodexxError::Database(error.to_string()))?;
+    let mut connection = open_db()?;
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    transaction
+        .execute(
+            "INSERT INTO managed_mcp_servers (id, name, server_config, enabled, updated_at)
+             VALUES (?1, ?2, ?3, 0, ?4)
+             ON CONFLICT(id) DO UPDATE SET
+               name = excluded.name,
+               server_config = excluded.server_config,
+               updated_at = excluded.updated_at",
+            params![id, name, config_text, now_rfc3339()],
+        )
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    transaction
+        .execute(
+            "INSERT INTO managed_mcp_targets (app_type, resource_id, enabled, updated_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(app_type, resource_id) DO UPDATE SET
+               enabled = excluded.enabled,
+               updated_at = excluded.updated_at",
+            params![tool.as_str(), id, enabled, now_rfc3339()],
+        )
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    transaction
+        .commit()
+        .map_err(|error| CodexxError::Database(error.to_string()))
+}
+
+fn normalize_mcp_config_for_storage(config: &Value) -> Value {
+    let mut normalized = config.clone();
+    let Some(server) = normalized.as_object_mut() else {
+        return normalized;
+    };
+    if server.contains_key("type") || server.contains_key("command") {
+        return normalized;
+    }
+    let Some(url) = server.get("url").and_then(Value::as_str) else {
+        return normalized;
+    };
+    let transport = reqwest::Url::parse(url)
+        .ok()
+        .filter(|url| matches!(url.scheme(), "http" | "https"))
+        .map(|url| {
+            if url.path().trim_end_matches('/').ends_with("/sse") {
+                "sse"
+            } else {
+                "http"
+            }
+        });
+    if let Some(transport) = transport {
+        server.insert("type".to_string(), Value::String(transport.to_string()));
+    }
+    normalized
+}
+
+fn db_mcp_for_tool(tool: ToolId) -> Result<Vec<(String, String, Value, bool)>> {
+    let connection = open_db()?;
+    let mut statement = connection
+        .prepare(
+            "SELECT server.id, server.name, server.server_config,
+                    COALESCE(target.enabled, 0)
+             FROM managed_mcp_servers AS server
+             LEFT JOIN managed_mcp_targets AS target
+               ON target.resource_id = server.id AND target.app_type = ?1
+             ORDER BY server.name ASC, server.id ASC",
+        )
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    let rows = statement
+        .query_map([tool.as_str()], |row| {
+            let text = row.get::<_, String>(2)?;
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                serde_json::from_str::<Value>(&text).unwrap_or_else(|_| Value::Object(Map::new())),
+                row.get::<_, bool>(3)?,
+            ))
+        })
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(row.map_err(|error| CodexxError::Database(error.to_string()))?);
+    }
+    Ok(result)
+}
+
+fn save_skill_resource(skill: &ManagedSkill, tool: ToolId) -> Result<()> {
+    let connection = open_db()?;
+    connection
+        .execute(
+            "INSERT INTO managed_skills
+               (id, name, description, directory, source_path, content_hash, enabled, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)
+             ON CONFLICT(id) DO UPDATE SET
+               name = excluded.name,
+               description = excluded.description,
+               directory = excluded.directory,
+               source_path = excluded.source_path,
+               content_hash = excluded.content_hash,
+               updated_at = excluded.updated_at",
+            params![
+                skill.id,
+                skill.name,
+                skill.description,
+                skill.directory,
+                skill.path,
+                skill.content_hash,
+                now_rfc3339(),
+            ],
+        )
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    set_resource_target("managed_skill_targets", tool, &skill.id, skill.enabled)
+}
+
+fn scan_shared_skills(
+    selected: ToolId,
+    config_dir: Option<String>,
+    selected_skills_dir: &Path,
+    selected_disabled_dir: &Path,
+    warnings: &mut Vec<String>,
+) -> Result<Vec<ManagedSkill>> {
+    let mut skills = Vec::new();
+    let mut seen = HashSet::new();
+    for (directory, enabled, source) in [
+        (
+            selected_skills_dir.to_path_buf(),
+            true,
+            source_label(selected),
+        ),
+        (
+            selected_disabled_dir.to_path_buf(),
+            false,
+            "DevConduit 已禁用".to_string(),
+        ),
+    ] {
+        if let Err(error) = scan_skill_dir(&directory, enabled, true, &source, &mut skills, &mut seen)
+        {
+            warnings.push(error.to_string());
+        }
+    }
+    for tool in ToolId::ALL {
+        if tool == selected {
+            continue;
+        }
+        let active = tool.skills_dir(config_dir.clone())?;
+        let disabled = disabled_skills_dir(tool)?;
+        for (directory, source) in [
+            (active, format!("来自 {}", tool.label())),
+            (disabled, format!("{} 已禁用", tool.label())),
+        ] {
+            if let Err(error) =
+                scan_skill_dir(&directory, false, false, &source, &mut skills, &mut seen)
+            {
+                warnings.push(error.to_string());
+            }
+        }
+    }
+    Ok(skills)
+}
+
+fn is_offline_module(skill: &ManagedSkill) -> bool {
+    skill.id.starts_with("offline-module:")
+        || skill.directory.replace('\\', "/").contains("_offline/modules/")
+}
+
+fn append_offline_modules(
+    skills_dir: &Path,
+    disabled_dir: &Path,
+    skills: &mut Vec<ManagedSkill>,
+    warnings: &mut Vec<String>,
+) {
+    scan_offline_module_dir(
+        &skills_dir.join("_offline").join("modules"),
+        true,
+        skills,
+        warnings,
+    );
+    scan_offline_module_dir(
+        &disabled_dir.join("_offline").join("modules"),
+        false,
+        skills,
+        warnings,
+    );
+}
+
+fn scan_offline_module_dir(
+    modules_dir: &Path,
+    enabled: bool,
+    skills: &mut Vec<ManagedSkill>,
+    warnings: &mut Vec<String>,
+) {
+    let entries = match fs::read_dir(modules_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+        Err(error) => {
+            warnings.push(format!(
+                "读取离线深度模块失败（{}）：{error}",
+                modules_dir.display()
+            ));
+            return;
+        }
+    };
+    for entry in entries {
+        let Ok(entry) = entry else { continue };
+        let path = entry.path();
+        if !path.is_file() || path.extension().and_then(|ext| ext.to_str()) != Some("md") {
+            continue;
+        }
+        let stem = path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or("offline-module");
+        if skills.iter().any(|skill| skill.id == format!("offline-module:{stem}")) {
+            continue;
+        }
+        let content = read_to_string_if_exists(&path).unwrap_or_default();
+        let (title, description) = read_skill_frontmatter(&content, stem);
+        skills.push(ManagedSkill {
+            id: format!("offline-module:{stem}"),
+            name: title,
+            description,
+            directory: format!("_offline/modules/{}.md", entry.file_name().to_string_lossy()),
+            enabled,
+            source: "L-Skill 1.5.9 深度模块".to_string(),
+            path: path.display().to_string(),
+            content_hash: None,
+            update_status: "未检查".to_string(),
+            installed: true,
+            read_only: false,
+        });
+    }
+}
+
+pub(crate) fn build_tool_state_inner(
+    tool: ToolId,
+    config_dir: Option<String>,
+) -> Result<SkillsMcpState> {
+    let tool_dir = tool.home_dir(config_dir.clone())?;
+    let skills_dir = tool.skills_dir(config_dir.clone())?;
+    let disabled_dir = disabled_skills_dir(tool)?;
+    let config_path = mcp_config_path(tool, config_dir.clone())?;
+    let mut warnings = Vec::new();
+    let mcp_adapter_installed = if tool == ToolId::Pi {
+        Some(crate::devconduit::pi::mcp_adapter_installed()?)
+    } else {
+        None
+    };
+    for directory in [&skills_dir, &disabled_dir] {
+        if let Err(error) = normalize_legacy_zip_skill_dirs(directory) {
+            warnings.push(format!("修正 ZIP Skill 目录名失败: {error}"));
+        }
+    }
+    let mut skills = scan_shared_skills(
+        tool,
+        config_dir.clone(),
+        &skills_dir,
+        &disabled_dir,
+        &mut warnings,
+    )?;
+    if matches!(tool, ToolId::Pi | ToolId::Codex) {
+        append_offline_modules(&skills_dir, &disabled_dir, &mut skills, &mut warnings);
+    }
+    for skill in &skills {
+        if let Err(error) = save_skill_resource(skill, tool) {
+            warnings.push(error.to_string());
+        }
+    }
+
+    let mut mcp_servers = list_tool_mcp(tool, config_dir)?;
+    if mcp_adapter_installed == Some(false) {
+        for server in &mut mcp_servers {
+            server.enabled = false;
+        }
+    }
+    let live_ids = mcp_servers
+        .iter()
+        .map(|server| server.id.clone())
+        .collect::<HashSet<_>>();
+    let target_state = mcp_targets(tool)?;
+    for (id, name, config, enabled) in db_mcp_for_tool(tool)? {
+        if live_ids.contains(&id) {
+            continue;
+        }
+        let (transport, command, url, summary) = mcp_summary(&config);
+        mcp_servers.push(ManagedMcpServer {
+            id: id.clone(),
+            name,
+            transport,
+            enabled: mcp_adapter_installed.unwrap_or(true)
+                && target_state.get(&id).copied().unwrap_or(enabled),
+            source: "DevConduit".to_string(),
+            summary,
+            command,
+            url,
+            config_json: config,
+            installed: target_state.contains_key(&id),
+        });
+    }
+    sort_managed_skills(&mut skills);
+    sort_managed_mcp_servers(&mut mcp_servers);
+    if mcp_adapter_installed == Some(false) && !mcp_servers.is_empty() {
+        warnings
+            .push("Pi MCP adapter 尚未安装固定版本；首次启用 MCP 时会先显示安装确认。".to_string());
+    }
+    Ok(SkillsMcpState {
+        tool,
+        tool_label: tool.label().to_string(),
+        tool_dir: tool_dir.display().to_string(),
+        skills_dir: skills_dir.display().to_string(),
+        config_path: config_path.display().to_string(),
+        codex_dir: tool_dir.display().to_string(),
+        codex_skills_dir: skills_dir.display().to_string(),
+        disabled_skills_dir: disabled_dir.display().to_string(),
+        mcp_adapter_installed,
+        skills,
+        mcp_servers,
+        warnings,
+    })
+}
+
+fn set_json_mcp(
+    root: &mut Map<String, Value>,
+    tool: ToolId,
+    id: &str,
+    config: Option<Value>,
+) -> Result<()> {
+    match tool {
+        ToolId::Claude => {
+            let servers = root
+                .entry("mcpServers".to_string())
+                .or_insert_with(|| Value::Object(Map::new()));
+            if !servers.is_object() {
+                *servers = Value::Object(Map::new());
+            }
+            let servers = servers.as_object_mut().expect("mcpServers is an object");
+            if let Some(config) = config {
+                servers.insert(id.to_string(), config);
+            } else {
+                servers.remove(id);
+            }
+        }
+        ToolId::Zcode => {
+            let mcp = root
+                .entry("mcp".to_string())
+                .or_insert_with(|| Value::Object(Map::new()));
+            if !mcp.is_object() {
+                *mcp = Value::Object(Map::new());
+            }
+            let mcp = mcp.as_object_mut().expect("mcp is an object");
+            let servers = mcp
+                .entry("servers".to_string())
+                .or_insert_with(|| Value::Object(Map::new()));
+            if !servers.is_object() {
+                *servers = Value::Object(Map::new());
+            }
+            let servers = servers.as_object_mut().expect("servers is an object");
+            if let Some(config) = config {
+                servers.insert(id.to_string(), config);
+            } else {
+                servers.remove(id);
+            }
+        }
+        ToolId::Kilo => {
+            let servers = root
+                .entry("mcp".to_string())
+                .or_insert_with(|| Value::Object(Map::new()));
+            if !servers.is_object() {
+                *servers = Value::Object(Map::new());
+            }
+            let servers = servers.as_object_mut().expect("mcp is an object");
+            if let Some(config) = config {
+                servers.insert(id.to_string(), config);
+            } else {
+                servers.remove(id);
+            }
+        }
+        ToolId::Pi => {
+            let servers = root
+                .entry("mcpServers".to_string())
+                .or_insert_with(|| Value::Object(Map::new()));
+            if !servers.is_object() {
+                *servers = Value::Object(Map::new());
+            }
+            let servers = servers.as_object_mut().expect("mcpServers is an object");
+            if let Some(config) = config {
+                servers.insert(id.to_string(), pi_mcp_from_internal(&config)?);
+            } else {
+                servers.remove(id);
+            }
+        }
+        ToolId::Codex | ToolId::Grok => {}
+    }
+    Ok(())
+}
+
+fn toml_mcp_item_for_tool(tool: ToolId, config: &Value) -> Item {
+    let mut normalized = config.clone();
+    if let Some(server) = normalized.as_object_mut() {
+        match tool {
+            ToolId::Codex => {
+                server.remove("type");
+                if !server.contains_key("http_headers") {
+                    if let Some(headers) = server.remove("headers") {
+                        server.insert("http_headers".to_string(), headers);
+                    }
+                } else {
+                    server.remove("headers");
+                }
+            }
+            ToolId::Grok => {
+                server.remove("type");
+                if !server.contains_key("headers") {
+                    if let Some(headers) = server.remove("http_headers") {
+                        server.insert("headers".to_string(), headers);
+                    }
+                } else {
+                    server.remove("http_headers");
+                }
+            }
+            ToolId::Claude | ToolId::Zcode | ToolId::Kilo | ToolId::Pi => {}
+        }
+    }
+    json_to_toml_item(&normalized)
+}
+
+fn write_tool_mcp(
+    tool: ToolId,
+    config_dir: Option<String>,
+    id: &str,
+    config: Option<Value>,
+) -> Result<()> {
+    let path = mcp_config_path(tool, config_dir)?;
+    if let Some(parent) = path.parent() {
+        ensure_directory(parent)?;
+    }
+    let text = read_to_string_if_exists(&path)?;
+    match tool {
+        ToolId::Codex | ToolId::Grok => {
+            let mut document = parse_toml_document(&path, &text)?;
+            if let Some(config) = config {
+                ensure_table(document.as_table_mut(), "mcp_servers")?
+                    .insert(id, toml_mcp_item_for_tool(tool, &config));
+            } else if let Some(table) = document
+                .get_mut("mcp_servers")
+                .and_then(|item| item.as_table_mut())
+            {
+                table.remove(id);
+            }
+            write_text(&path, &document.to_string())
+        }
+        ToolId::Claude | ToolId::Zcode => {
+            let mut root = if text.trim().is_empty() {
+                Map::new()
+            } else {
+                serde_json::from_str::<Value>(&text)
+                    .map_err(|error| crate::devconduit::file_io::json_err(&path, error))?
+                    .as_object()
+                    .cloned()
+                    .ok_or_else(|| {
+                        CodexxError::Config(format!(
+                            "MCP 配置必须是 JSON object: {}",
+                            path.display()
+                        ))
+                    })?
+            };
+            set_json_mcp(&mut root, tool, id, config)?;
+            write_json(&path, &Value::Object(root))
+        }
+        ToolId::Pi => write_text(&path, &update_pi_mcp_jsonc(&text, id, config.as_ref())?),
+        ToolId::Kilo => write_text(&path, &update_kilo_jsonc(&text, id, config.as_ref())?),
+    }
+}
+
+fn prepare_pi_adapter(
+    tool: ToolId,
+    enabling: bool,
+) -> Result<Option<crate::devconduit::pi::PiMcpAdapterInstall>> {
+    if tool == ToolId::Pi && enabling {
+        crate::devconduit::pi::ensure_mcp_adapter_installed().map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+fn rollback_pi_adapter(install: Option<&crate::devconduit::pi::PiMcpAdapterInstall>) -> Option<String> {
+    install
+        .and_then(|install| crate::devconduit::pi::rollback_mcp_adapter_install(install).err())
+        .map(|error| error.to_string())
+}
+
+fn rollback_error(error: CodexxError, failures: Vec<String>) -> CodexxError {
+    if failures.is_empty() {
+        error
+    } else {
+        CodexxError::Config(format!("{error}；回滚失败：{}", failures.join("；")))
+    }
+}
+
+fn rollback_pi_mcp_action(
+    snapshot: Option<&OptionalMcpConfigSnapshot>,
+    adapter: Option<&crate::devconduit::pi::PiMcpAdapterInstall>,
+) -> Vec<String> {
+    let mut failures = Vec::new();
+    if let Some(snapshot) = snapshot {
+        if let Err(error) = restore_optional_mcp_config(snapshot) {
+            failures.push(error.to_string());
+        }
+    }
+    if let Some(error) = rollback_pi_adapter(adapter) {
+        failures.push(error);
+    }
+    failures
+}
+
+pub(super) fn install_tool_mcp_config_inner(
+    tool: ToolId,
+    config_dir: Option<String>,
+    id: &str,
+    name: &str,
+    config: Value,
+) -> Result<SkillsMcpState> {
+    let previous = list_tool_mcp(tool, config_dir.clone())?
+        .into_iter()
+        .find(|server| server.id == id)
+        .map(|server| server.config_json);
+    let pi_config_snapshot = if tool == ToolId::Pi {
+        Some(capture_optional_mcp_config(mcp_config_path(
+            tool,
+            config_dir.clone(),
+        )?)?)
+    } else {
+        None
+    };
+    let adapter_install = prepare_pi_adapter(tool, true)?;
+    if let Err(error) = write_tool_mcp(tool, config_dir.clone(), id, Some(config.clone())) {
+        let failures =
+            rollback_pi_mcp_action(pi_config_snapshot.as_ref(), adapter_install.as_ref());
+        return Err(rollback_error(error, failures));
+    }
+    if let Err(error) = save_mcp_resource_and_target(id, name, &config, tool, true) {
+        let mut failures = if tool == ToolId::Pi {
+            rollback_pi_mcp_action(pi_config_snapshot.as_ref(), adapter_install.as_ref())
+        } else {
+            Vec::new()
+        };
+        if tool != ToolId::Pi {
+            if let Err(rollback) = write_tool_mcp(tool, config_dir.clone(), id, previous) {
+                failures.push(rollback.to_string());
+            }
+        }
+        return Err(rollback_error(error, failures));
+    }
+    build_tool_state_inner(tool, config_dir)
+}
+
+pub(crate) fn toggle_tool_mcp_inner(
+    tool: ToolId,
+    config_dir: Option<String>,
+    id: String,
+    enabled: bool,
+) -> Result<SkillsMcpState> {
+    let live = list_tool_mcp(tool, config_dir.clone())?;
+    let existing_live = live.iter().find(|server| server.id == id);
+    let config = if enabled {
+        db_mcp_for_tool(tool)?
+            .into_iter()
+            .find(|(server_id, _, _, _)| server_id == &id)
+            .map(|(_, _, config, _)| config)
+            .or_else(|| existing_live.map(|server| server.config_json.clone()))
+            .ok_or_else(|| CodexxError::Config(format!("未找到 MCP: {id}")))?
+    } else {
+        if let Some(server) = existing_live {
+            save_mcp_resource(&server.id, &server.name, &server.config_json)?;
+        }
+        Value::Null
+    };
+    let previous = existing_live.map(|server| server.config_json.clone());
+    let pi_config_snapshot = if tool == ToolId::Pi {
+        Some(capture_optional_mcp_config(mcp_config_path(
+            tool,
+            config_dir.clone(),
+        )?)?)
+    } else {
+        None
+    };
+    let adapter_install = prepare_pi_adapter(tool, enabled)?;
+    if let Err(error) = write_tool_mcp(tool, config_dir.clone(), &id, enabled.then_some(config)) {
+        let failures =
+            rollback_pi_mcp_action(pi_config_snapshot.as_ref(), adapter_install.as_ref());
+        return Err(rollback_error(error, failures));
+    }
+    if let Err(error) = set_resource_target("managed_mcp_targets", tool, &id, enabled) {
+        let mut failures = if tool == ToolId::Pi {
+            rollback_pi_mcp_action(pi_config_snapshot.as_ref(), adapter_install.as_ref())
+        } else {
+            Vec::new()
+        };
+        if tool != ToolId::Pi {
+            if let Err(rollback) = write_tool_mcp(tool, config_dir.clone(), &id, previous) {
+                failures.push(rollback.to_string());
+            }
+        }
+        return Err(rollback_error(error, failures));
+    }
+    build_tool_state_inner(tool, config_dir)
+}
+
+pub(crate) fn toggle_tool_skill_inner(
+    tool: ToolId,
+    config_dir: Option<String>,
+    id: String,
+    enabled: bool,
+) -> Result<SkillsMcpState> {
+    let state = build_tool_state_inner(tool, config_dir.clone())?;
+    let skill = state
+        .skills
+        .iter()
+        .find(|skill| skill.id == id)
+        .cloned()
+        .ok_or_else(|| CodexxError::Config(format!("未找到 Skill: {id}")))?;
+    let skills_dir = tool.skills_dir(config_dir.clone())?;
+    let disabled_dir = disabled_skills_dir(tool)?;
+    ensure_directory(&skills_dir)?;
+    ensure_directory(&disabled_dir)?;
+    if is_offline_module(&skill) {
+        let file_name = Path::new(&skill.directory)
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| CodexxError::Config(format!("Skill 文件名无效: {id}")))?;
+        let enabled_path = skills_dir.join("_offline").join("modules").join(file_name);
+        let disabled_path = disabled_dir.join("_offline").join("modules").join(file_name);
+        if enabled {
+            if disabled_path.is_file() {
+                if let Some(parent) = enabled_path.parent() {
+                    ensure_directory(parent)?;
+                }
+                fs::rename(&disabled_path, &enabled_path).map_err(|error| io_err(&enabled_path, error))?;
+            } else if !enabled_path.is_file() {
+                return Err(CodexxError::Config(format!(
+                    "Skill 源文件不存在: {}",
+                    PathBuf::from(&skill.path).display()
+                )));
+            }
+        } else if enabled_path.is_file() {
+            if let Some(parent) = disabled_path.parent() {
+                ensure_directory(parent)?;
+            }
+            fs::rename(&enabled_path, &disabled_path).map_err(|error| io_err(&disabled_path, error))?;
+        }
+    } else {
+        let enabled_path = skills_dir.join(&skill.directory);
+        let disabled_path = disabled_dir.join(&skill.directory);
+        if enabled {
+            if disabled_path.is_dir() {
+                move_dir_replace(&disabled_path, &enabled_path)?;
+            } else if !enabled_path.is_dir() {
+                let source = PathBuf::from(&skill.path);
+                if !source.is_dir() {
+                    return Err(CodexxError::Config(format!(
+                        "Skill 源目录不存在: {}",
+                        source.display()
+                    )));
+                }
+                copy_dir_recursive(&source, &enabled_path)?;
+            }
+        } else if enabled_path.is_dir() {
+            move_dir_replace(&enabled_path, &disabled_path)?;
+        }
+    }
+    set_resource_target("managed_skill_targets", tool, &id, enabled)?;
+    build_tool_state_inner(tool, config_dir)
+}
+
+fn ccswitch_mcp_candidates(tool: ToolId) -> Result<Vec<ManagedMcpServer>> {
+    let database = default_ccswitch_db_path()?;
+    if !database.is_file() {
+        return Ok(Vec::new());
+    }
+    let connection = Connection::open_with_flags(
+        &database,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|error| CodexxError::Database(error.to_string()))?;
+    let columns = crate::devconduit::sqlite_utils::table_column_set(&connection, "mcp_servers")?;
+    if columns.is_empty() {
+        return Ok(Vec::new());
+    }
+    let enabled_column = match tool {
+        ToolId::Codex => "enabled_codex",
+        ToolId::Claude => "enabled_claude",
+        ToolId::Grok => "enabled_grokbuild",
+        ToolId::Zcode | ToolId::Kilo | ToolId::Pi => "",
+    };
+    let enabled_expression = if columns.contains(enabled_column) {
+        enabled_column
+    } else {
+        "0"
+    };
+    let query = format!(
+        "SELECT id, name, server_config, {enabled_expression}
+         FROM mcp_servers ORDER BY name ASC, id ASC"
+    );
+    let mut statement = connection
+        .prepare(&query)
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    let rows = statement
+        .query_map([], |row| {
+            let id = row.get::<_, String>(0)?;
+            let name = row.get::<_, String>(1)?;
+            let config_text = row.get::<_, String>(2)?;
+            let config = serde_json::from_str::<Value>(&config_text)
+                .unwrap_or_else(|_| Value::Object(Map::new()));
+            let (transport, command, url, summary) = mcp_summary(&config);
+            Ok(ManagedMcpServer {
+                id,
+                name,
+                transport,
+                enabled: row.get::<_, bool>(3)?,
+                source: "cc-switch".to_string(),
+                summary,
+                command,
+                url,
+                config_json: config,
+                installed: false,
+            })
+        })
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(row.map_err(|error| CodexxError::Database(error.to_string()))?);
+    }
+    Ok(result)
+}
+
+fn import_skill_candidates(
+    tool: ToolId,
+    config_dir: Option<String>,
+) -> Result<Vec<(PathBuf, String)>> {
+    let mut candidates = vec![
+        (
+            home_dir()?.join(".agents").join("skills"),
+            ".agents".to_string(),
+        ),
+        (
+            home_dir()?.join(".cc-switch").join("skills"),
+            "cc-switch".to_string(),
+        ),
+    ];
+    for source_tool in ToolId::ALL {
+        if source_tool != tool {
+            candidates.push((
+                source_tool.skills_dir(config_dir.clone())?,
+                source_tool.label().to_string(),
+            ));
+        }
+    }
+    Ok(candidates)
+}
+
+pub(crate) fn preview_tool_import_inner(
+    tool: ToolId,
+    config_dir: Option<String>,
+) -> Result<SkillsMcpImportPreview> {
+    let destination = tool.skills_dir(config_dir.clone())?;
+    let mut skills = Vec::new();
+    let mut seen = HashSet::new();
+    let mut warnings = Vec::new();
+    for (candidate, source) in import_skill_candidates(tool, config_dir.clone())? {
+        let before = skills.len();
+        if let Err(error) = scan_skill_dir(&candidate, false, false, &source, &mut skills, &mut seen)
+        {
+            warnings.push(error.to_string());
+            continue;
+        }
+        for skill in &mut skills[before..] {
+            skill.update_status = if destination.join(&skill.directory).is_dir() {
+                "已存在，将跳过".to_string()
+            } else {
+                "可导入".to_string()
+            };
+        }
+    }
+    skills.retain(|skill| skill.update_status == "可导入");
+    let managed_ids = db_mcp_for_tool(tool)?
+        .into_iter()
+        .map(|(id, _, _, _)| id)
+        .collect::<HashSet<_>>();
+    let mut mcp_servers = list_tool_mcp(tool, config_dir)?
+        .into_iter()
+        .chain(ccswitch_mcp_candidates(tool)?)
+        .filter(|server| !managed_ids.contains(&server.id))
+        .collect::<Vec<_>>();
+    let mut mcp_seen = HashSet::new();
+    mcp_servers.retain(|server| mcp_seen.insert(server.id.clone()));
+    sort_managed_skills(&mut skills);
+    sort_managed_mcp_servers(&mut mcp_servers);
+    Ok(SkillsMcpImportPreview {
+        skills,
+        mcp_servers,
+        warnings,
+    })
+}
+
+pub(crate) fn import_tool_resources_inner(
+    tool: ToolId,
+    config_dir: Option<String>,
+) -> Result<SkillsMcpActionResult> {
+    let skills_dir = tool.skills_dir(config_dir.clone())?;
+    ensure_directory(&skills_dir)?;
+    let mut imported_skills = 0usize;
+    for (candidate, _) in import_skill_candidates(tool, config_dir.clone())? {
+        if !candidate.is_dir() {
+            continue;
+        }
+        for entry in fs::read_dir(&candidate).map_err(|error| io_err(&candidate, error))? {
+            let entry = entry.map_err(|error| io_err(&candidate, error))?;
+            let source = entry.path();
+            if !source.is_dir() || !source.join("SKILL.md").is_file() {
+                continue;
+            }
+            let directory = sanitize_dir_name(&entry.file_name().to_string_lossy(), "skill");
+            let destination = skills_dir.join(directory);
+            if destination.exists() {
+                continue;
+            }
+            copy_dir_recursive(&source, &destination)?;
+            imported_skills += 1;
+        }
+    }
+    let mut imported_mcp = 0usize;
+    let live_ids = list_tool_mcp(tool, config_dir.clone())?
+        .into_iter()
+        .map(|server| server.id)
+        .collect::<HashSet<_>>();
+    let mut seen = HashSet::new();
+    for server in list_tool_mcp(tool, config_dir.clone())?
+        .into_iter()
+        .chain(ccswitch_mcp_candidates(tool)?)
+    {
+        if !seen.insert(server.id.clone()) {
+            continue;
+        }
+        save_mcp_resource(&server.id, &server.name, &server.config_json)?;
+        let enabled = live_ids.contains(&server.id) || server.enabled;
+        set_resource_target("managed_mcp_targets", tool, &server.id, enabled)?;
+        if enabled && !live_ids.contains(&server.id) {
+            write_tool_mcp(
+                tool,
+                config_dir.clone(),
+                &server.id,
+                Some(server.config_json.clone()),
+            )?;
+        }
+        imported_mcp += 1;
+    }
+    let state = build_tool_state_inner(tool, config_dir)?;
+    Ok(SkillsMcpActionResult {
+        imported_skills,
+        imported_mcp,
+        message: format!(
+            "已为 {} 导入 {imported_skills} 个 Skills，纳管 {imported_mcp} 个 MCP",
+            tool.label()
+        ),
+        state,
+    })
+}
+
+pub(crate) fn install_tool_skill_zip_inner(
+    tool: ToolId,
+    config_dir: Option<String>,
+    file_name: String,
+    bytes: Vec<u8>,
+) -> Result<SkillsMcpActionResult> {
+    let skills_dir = tool.skills_dir(config_dir.clone())?;
+    ensure_directory(&skills_dir)?;
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes))
+        .map_err(|error| CodexxError::Config(format!("读取 ZIP 失败: {error}")))?;
+    let temporary = app_home()?
+        .join("tmp")
+        .join(format!("skill-zip-{}", Local::now().timestamp_millis()));
+    ensure_directory(&temporary)?;
+    let install_result = (|| -> Result<usize> {
+        let mut total_size = 0u64;
+        for index in 0..archive.len() {
+            let mut file = archive
+                .by_index(index)
+                .map_err(|error| CodexxError::Config(format!("读取 ZIP 条目失败: {error}")))?;
+            let Some(relative) = file.enclosed_name() else {
+                continue;
+            };
+            total_size = total_size.saturating_add(file.size());
+            if total_size > MAX_SKILL_ZIP_BYTES {
+                return Err(CodexxError::Config("ZIP 解压后超过 20MB".to_string()));
+            }
+            let output = temporary.join(relative);
+            if file.is_dir() {
+                ensure_directory(&output)?;
+            } else {
+                if let Some(parent) = output.parent() {
+                    ensure_directory(parent)?;
+                }
+                let mut destination =
+                    fs::File::create(&output).map_err(|error| io_err(&output, error))?;
+                std::io::copy(&mut file, &mut destination)
+                    .map_err(|error| io_err(&output, error))?;
+            }
+        }
+        fn find_skills(directory: &Path, output: &mut Vec<PathBuf>) -> Result<()> {
+            if directory.join("SKILL.md").is_file() {
+                output.push(directory.to_path_buf());
+                return Ok(());
+            }
+            for entry in fs::read_dir(directory).map_err(|error| io_err(directory, error))? {
+                let path = entry.map_err(|error| io_err(directory, error))?.path();
+                if path.is_dir() {
+                    find_skills(&path, output)?;
+                }
+            }
+            Ok(())
+        }
+        let mut found = Vec::new();
+        find_skills(&temporary, &mut found)?;
+        if found.is_empty() {
+            return Err(CodexxError::Config("ZIP 中没有找到 SKILL.md".to_string()));
+        }
+        for source in &found {
+            let fallback = file_name.trim_end_matches(".zip");
+            let directory = source
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(fallback);
+            let (name, _) = read_skill_metadata(source, directory);
+            let destination = skills_dir.join(sanitize_dir_name(&name, "skill"));
+            if destination.exists() {
+                fs::remove_dir_all(&destination).map_err(|error| io_err(&destination, error))?;
+            }
+            copy_dir_recursive(source, &destination)?;
+        }
+        Ok(found.len())
+    })();
+    let _ = fs::remove_dir_all(&temporary);
+    let imported_skills = install_result?;
+    let state = build_tool_state_inner(tool, config_dir)?;
+    Ok(SkillsMcpActionResult {
+        imported_skills,
+        imported_mcp: 0,
+        message: format!(
+            "已为 {} 从 ZIP 安装 {imported_skills} 个 Skill",
+            tool.label()
+        ),
+        state,
+    })
+}
+
+pub(crate) fn check_tool_skill_updates_inner(
+    tool: ToolId,
+    config_dir: Option<String>,
+) -> Result<SkillsMcpState> {
+    if tool == ToolId::Codex {
+        return super::skills::check_skill_updates_inner(config_dir);
+    }
+    build_tool_state_inner(tool, config_dir)
+}
+
+fn delete_resource_target(table: &str, tool: ToolId, id: &str) -> Result<()> {
+    let table = match table {
+        "managed_mcp_targets" => "managed_mcp_targets",
+        "managed_skill_targets" => "managed_skill_targets",
+        _ => {
+            return Err(CodexxError::Database(
+                "invalid managed resource table".to_string(),
+            ))
+        }
+    };
+    let connection = open_db()?;
+    connection
+        .execute(
+            &format!("DELETE FROM {table} WHERE app_type = ?1 AND resource_id = ?2"),
+            params![tool.as_str(), id],
+        )
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    Ok(())
+}
+
+fn delete_shared_resource_if_orphaned(
+    target_table: &str,
+    resource_table: &str,
+    id: &str,
+) -> Result<()> {
+    let (target_table, resource_table) = match (target_table, resource_table) {
+        ("managed_mcp_targets", "managed_mcp_servers") => {
+            ("managed_mcp_targets", "managed_mcp_servers")
+        }
+        ("managed_skill_targets", "managed_skills") => ("managed_skill_targets", "managed_skills"),
+        _ => {
+            return Err(CodexxError::Database(
+                "invalid managed resource cleanup table".to_string(),
+            ))
+        }
+    };
+    let connection = open_db()?;
+    let references = connection
+        .query_row(
+            &format!("SELECT COUNT(*) FROM {target_table} WHERE resource_id = ?1"),
+            [id],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| CodexxError::Database(error.to_string()))?;
+    if references == 0 {
+        connection
+            .execute(&format!("DELETE FROM {resource_table} WHERE id = ?1"), [id])
+            .map_err(|error| CodexxError::Database(error.to_string()))?;
+    }
+    Ok(())
+}
+
+pub(crate) fn uninstall_tool_mcp_inner(
+    tool: ToolId,
+    config_dir: Option<String>,
+    id: String,
+) -> Result<SkillsMcpActionResult> {
+    let live = list_tool_mcp(tool, config_dir.clone())?;
+    let previous = live
+        .iter()
+        .find(|server| server.id == id)
+        .map(|server| server.config_json.clone());
+    let installed_skill_directories = super::installations::load_installation_manifest(tool, &id)?
+        .map(|manifest| manifest.installed_skills)
+        .unwrap_or_default();
+    write_tool_mcp(tool, config_dir.clone(), &id, None)?;
+    let cleanup =
+        super::installations::remove_installation_artifacts(tool, config_dir.clone(), &id);
+    let notes = match cleanup {
+        Ok(notes) => notes,
+        Err(error) => {
+            let _ = write_tool_mcp(tool, config_dir.clone(), &id, previous);
+            return Err(CodexxError::Config(format!(
+                "清理 MCP 安装文件失败: {error}"
+            )));
+        }
+    };
+    delete_resource_target("managed_mcp_targets", tool, &id)?;
+    delete_shared_resource_if_orphaned("managed_mcp_targets", "managed_mcp_servers", &id)?;
+    for directory in installed_skill_directories {
+        let skill_id = sanitize_dir_name(&directory, "skill");
+        delete_resource_target("managed_skill_targets", tool, &skill_id)?;
+        delete_shared_resource_if_orphaned("managed_skill_targets", "managed_skills", &skill_id)?;
+    }
+    let state = build_tool_state_inner(tool, config_dir)?;
+    let mut message = format!("已从 {} 完整卸载 MCP {id}", tool.label());
+    if tool == ToolId::Pi {
+        message.push_str("；Pi MCP Adapter 作为共享扩展保留");
+    }
+    if !notes.is_empty() {
+        message.push_str("；");
+        message.push_str(&notes.join("；"));
+    }
+    Ok(SkillsMcpActionResult {
+        imported_skills: 0,
+        imported_mcp: 0,
+        message,
+        state,
+    })
+}
+
+pub(crate) fn uninstall_tool_skill_inner(
+    tool: ToolId,
+    config_dir: Option<String>,
+    id: String,
+) -> Result<SkillsMcpActionResult> {
+    let state = build_tool_state_inner(tool, config_dir.clone())?;
+    let skill = state
+        .skills
+        .iter()
+        .find(|skill| skill.id == id)
+        .cloned()
+        .ok_or_else(|| CodexxError::Config(format!("未找到 Skill: {id}")))?;
+    if is_offline_module(&skill) {
+        let file_name = Path::new(&skill.directory)
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| CodexxError::Config(format!("Skill 文件名无效: {id}")))?;
+        for root in [
+            tool.skills_dir(config_dir.clone())?,
+            disabled_skills_dir(tool)?,
+        ] {
+            let path = root.join("_offline").join("modules").join(file_name);
+            if path.is_file() {
+                fs::remove_file(&path).map_err(|error| io_err(&path, error))?;
+            }
+        }
+    } else {
+        let directory = sanitize_dir_name(&skill.directory, &sanitize_dir_name(&id, "skill"));
+        if skill.installed {
+            let active = tool.skills_dir(config_dir.clone())?.join(&directory);
+            let disabled = disabled_skills_dir(tool)?.join(&directory);
+            for path in [&active, &disabled] {
+                if path.exists() {
+                    fs::remove_dir_all(path).map_err(|error| io_err(path, error))?;
+                }
+            }
+        }
+        super::installations::forget_installed_skill(tool, &directory)?;
+    }
+    delete_resource_target("managed_skill_targets", tool, &id)?;
+    delete_shared_resource_if_orphaned("managed_skill_targets", "managed_skills", &id)?;
+    let state = build_tool_state_inner(tool, config_dir)?;
+    Ok(SkillsMcpActionResult {
+        imported_skills: 0,
+        imported_mcp: 0,
+        message: format!("已从 {} 完整卸载 Skill {}", tool.label(), skill.name),
+        state,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn grok_mcp_omits_type_and_uses_headers() {
+        let item = toml_mcp_item_for_tool(
+            ToolId::Grok,
+            &json!({
+                "type": "http",
+                "url": "https://example.com/mcp",
+                "http_headers": { "Authorization": "Bearer token" }
+            }),
+        );
+        let table = item.as_table().expect("Grok MCP should be a TOML table");
+        assert!(!table.contains_key("type"));
+        assert!(!table.contains_key("http_headers"));
+        assert_eq!(
+            table
+                .get("headers")
+                .and_then(Item::as_table)
+                .and_then(|headers| headers.get("Authorization"))
+                .and_then(Item::as_str),
+            Some("Bearer token")
+        );
+    }
+
+    #[test]
+    fn codex_mcp_omits_type_and_uses_http_headers() {
+        let item = toml_mcp_item_for_tool(
+            ToolId::Codex,
+            &json!({
+                "type": "http",
+                "url": "https://example.com/mcp",
+                "headers": { "Authorization": "Bearer token" }
+            }),
+        );
+        let table = item.as_table().expect("Codex MCP should be a TOML table");
+        assert!(!table.contains_key("type"));
+        assert!(!table.contains_key("headers"));
+        assert!(table.contains_key("http_headers"));
+    }
+
+    #[test]
+    fn storage_normalization_restores_remote_transport_metadata() {
+        let sse = normalize_mcp_config_for_storage(&json!({
+            "url": "http://127.0.0.1:9876/sse"
+        }));
+        let http = normalize_mcp_config_for_storage(&json!({
+            "url": "https://example.com/mcp"
+        }));
+
+        assert_eq!(sse["type"], "sse");
+        assert_eq!(http["type"], "http");
+    }
+
+    #[test]
+    fn pi_mcp_uses_adapter_mcp_servers_shape() {
+        let mut root = Map::from_iter([("theme".to_string(), Value::String("dark".to_string()))]);
+        set_json_mcp(
+            &mut root,
+            ToolId::Pi,
+            "devconduit-test",
+            Some(json!({
+                "type": "stdio",
+                "command": "node",
+                "args": ["server.js"],
+                "http_headers": { "Authorization": "Bearer test" },
+                "enabled": true
+            })),
+        )
+        .expect("normalize Pi MCP config");
+
+        assert_eq!(root.get("theme"), Some(&json!("dark")));
+        assert_eq!(
+            root.get("mcpServers")
+                .and_then(Value::as_object)
+                .and_then(|servers| servers.get("devconduit-test"))
+                .and_then(|server| server.get("command")),
+            Some(&json!("node"))
+        );
+        let server = &root["mcpServers"]["devconduit-test"];
+        assert!(server.get("type").is_none());
+        assert!(server.get("enabled").is_none());
+        assert!(server.get("http_headers").is_none());
+        assert_eq!(server["headers"]["Authorization"], "Bearer test");
+        assert!(server.get("httpTransport").is_none());
+    }
+
+    #[test]
+    fn pi_sse_mcp_uses_adapter_transport_field() {
+        let mut root = Map::new();
+        set_json_mcp(
+            &mut root,
+            ToolId::Pi,
+            "burp-suite-mcp",
+            Some(json!({
+                "type": "sse",
+                "url": "http://127.0.0.1:9876/sse"
+            })),
+        )
+        .expect("normalize Pi SSE config");
+
+        let server = &root["mcpServers"]["burp-suite-mcp"];
+        assert!(server.get("type").is_none());
+        assert_eq!(server["httpTransport"], "sse");
+    }
+
+    #[test]
+    fn pi_mcp_jsonc_update_preserves_comments_and_rejects_invalid_shape() {
+        let source = r#"{
+  // Keep this global MCP note.
+  "settings": { "toolPrefix": "mcp" },
+  "mcpServers": {
+    "existing": { "command": "existing-server" },
+  },
+}
+"#;
+        let updated = update_pi_mcp_jsonc(
+            source,
+            "burp-suite-mcp",
+            Some(&json!({
+                "type": "sse",
+                "url": "http://127.0.0.1:9876/sse"
+            })),
+        )
+        .expect("update Pi MCP JSONC");
+
+        assert!(updated.contains("// Keep this global MCP note."));
+        let parsed = parse_jsonc_config(Path::new("mcp.json"), &updated)
+            .expect("parse updated Pi MCP JSONC");
+        assert_eq!(
+            parsed
+                .pointer("/settings/toolPrefix")
+                .and_then(Value::as_str),
+            Some("mcp")
+        );
+        assert_eq!(
+            parsed
+                .pointer("/mcpServers/burp-suite-mcp/httpTransport")
+                .and_then(Value::as_str),
+            Some("sse")
+        );
+        assert!(update_pi_mcp_jsonc(
+            r#"{"mcpServers": []}"#,
+            "invalid",
+            Some(&json!({"command": "node"})),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn optional_pi_mcp_snapshot_restores_content_and_absence() {
+        let root = std::env::temp_dir().join(format!(
+            "devconduit-pi-mcp-snapshot-{}-{}",
+            std::process::id(),
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        fs::create_dir_all(&root).expect("create Pi MCP snapshot fixture");
+        let existing = root.join("existing.json");
+        let absent = root.join("absent.json");
+        fs::write(&existing, b"original").expect("write original Pi MCP config");
+        let existing_snapshot =
+            capture_optional_mcp_config(existing.clone()).expect("capture existing config");
+        let absent_snapshot =
+            capture_optional_mcp_config(absent.clone()).expect("capture absent config");
+
+        fs::write(&existing, b"changed").expect("change Pi MCP config");
+        fs::write(&absent, b"created").expect("create Pi MCP config");
+        restore_optional_mcp_config(&existing_snapshot).expect("restore existing config");
+        restore_optional_mcp_config(&absent_snapshot).expect("restore absent config");
+
+        assert_eq!(
+            fs::read(&existing).expect("read restored config"),
+            b"original"
+        );
+        assert!(!absent.exists());
+        fs::remove_dir_all(root).expect("remove Pi MCP snapshot fixture");
+    }
+
+    #[test]
+    fn kilo_jsonc_update_preserves_unrelated_comments() {
+        let source = r#"{
+  // Keep this provider note.
+  "provider": { "enabled": true },
+  "mcp": {
+    // Keep this server too.
+    "existing": { "type": "remote", "url": "https://example.com/mcp" },
+  },
+}
+"#;
+        let updated = update_kilo_jsonc(
+            source,
+            "devconduit-test",
+            Some(&json!({
+                "command": "node",
+                "args": ["server.js"],
+                "env": { "MODE": "safe" }
+            })),
+        )
+        .expect("update Kilo JSONC");
+
+        assert!(updated.contains("// Keep this provider note."));
+        assert!(updated.contains("// Keep this server too."));
+        let parsed =
+            parse_jsonc_config(Path::new("kilo.jsonc"), &updated).expect("parse updated JSONC");
+        assert_eq!(
+            parsed
+                .pointer("/mcp/devconduit-test/type")
+                .and_then(Value::as_str),
+            Some("local")
+        );
+        assert_eq!(
+            parsed
+                .pointer("/mcp/devconduit-test/command/0")
+                .and_then(Value::as_str),
+            Some("node")
+        );
+        assert_eq!(
+            parsed
+                .pointer("/mcp/devconduit-test/command/1")
+                .and_then(Value::as_str),
+            Some("server.js")
+        );
+    }
+
+    #[test]
+    fn kilo_remote_mcp_uses_official_shape() {
+        let normalized = kilo_mcp_from_internal(&json!({
+            "type": "sse",
+            "url": "http://127.0.0.1:9876/sse",
+            "http_headers": { "Authorization": "Bearer token" }
+        }))
+        .expect("normalize remote MCP");
+
+        assert_eq!(normalized["type"], "remote");
+        assert_eq!(normalized["enabled"], true);
+        assert_eq!(normalized["headers"]["Authorization"], "Bearer token");
+    }
+}

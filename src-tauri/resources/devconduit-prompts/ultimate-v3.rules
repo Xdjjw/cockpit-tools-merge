@@ -1,0 +1,230 @@
+prefix_rule(
+    pattern = ["bash"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["cargo"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["cmd"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["cscript"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["curl"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["docker"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["dotnet"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["g++"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["gcc"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["git"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["go"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["ida"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["ida64"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["ipconfig"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["java"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["javaw"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["msbuild"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["mshta"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["net"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["netsh"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["netstat"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["node"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["npm"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["npx"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["pip"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["powershell"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["pwsh"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["python"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["python3"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["reg"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["regsvr32"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["robocopy"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["rundll32"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["rustc"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["sc"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["schtasks"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["sh"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["taskkill"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["tasklist"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["whoami"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["wmic"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["wscript"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["wsl"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["x32dbg"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["x64dbg"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)
+prefix_rule(
+    pattern = ["xcopy"],
+    decision = "allow",
+    justification = "user-approved trusted workstation policy",
+)

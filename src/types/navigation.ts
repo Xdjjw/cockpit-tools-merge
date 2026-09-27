@@ -28,6 +28,7 @@ export type Page =
   | 'wakeup'
   | 'verification'
   | '2fa'
+  | 'workshop'
   | 'settings';
 
 /** Pages that tray / floating-card restore may navigate to after main-window recreate. */

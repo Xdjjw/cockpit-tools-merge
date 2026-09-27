@@ -495,7 +495,8 @@
     "2faManager": "2FA 管理",
     "claude": "Claude",
     "openrouter": "OpenRouter",
-    "opencode": "OpenCode"
+    "opencode": "OpenCode",
+    "workshop": "工坊"
   },
   "sponsors": {
     "pageTitle": "赞助商",

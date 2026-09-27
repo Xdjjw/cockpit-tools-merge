@@ -849,6 +849,7 @@ dependencies = [
  "fs2",
  "futures",
  "futures-util",
+ "jsonc-parser",
  "junction",
  "lazy_static",
  "libc",
@@ -859,6 +860,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-foundation",
  "pbkdf2",
+ "percent-encoding",
  "quick-xml 0.40.1",
  "rand 0.8.5",
  "rcgen",
@@ -907,6 +909,7 @@ dependencies = [
  "urlencoding",
  "uuid",
  "windows 0.58.0",
+ "winreg 0.52.0",
  "wry",
  "zip",
 ]
@@ -2903,6 +2906,15 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "jsonc-parser"
+version = "0.33.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ff5a48f48971be8e762a6ff955725a0802b6e46c441057992da5a673db9fd3a"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
@@ -7996,6 +8008,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80d0f4e272c85def139476380b12f9ac60926689dd2e01d4923222f40580869d"
 dependencies = [
  "winapi",
+]
+
+[[package]]
+name = "winreg"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a277a57398d4bfa075df44f501a17cfdf8542d224f0d36095a2adc7aee4ef0a5"
+dependencies = [
+ "cfg-if",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
