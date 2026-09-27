@@ -24,6 +24,8 @@ import type {
   CodexLocalAccessUsageEventPage,
   CodexLocalAccessImageGenerationPolicy,
   CodexInstanceGatewayView,
+  CodexLocalAccessLadderState,
+  CodexLocalAccessToolRouterState,
 } from "../types/codexLocalAccess";
 
 export async function getCodexLocalAccessState(): Promise<CodexLocalAccessState> {
@@ -399,4 +401,52 @@ export async function streamCodexLocalAccessChatTest(
     modelId,
     messages,
   });
+}
+
+// ---------- 本分支自有: 破甲阶梯 ----------
+
+/** 读取破甲阶梯状态。sidecar 未运行时返回持久化的配置, 不报错。 */
+export async function getCodexLocalAccessLadderState(): Promise<CodexLocalAccessLadderState> {
+  return await invoke("codex_local_access_ladder_state");
+}
+
+/** 更新阶梯的启用状态与自动重试策略。当前层不受影响。 */
+export async function updateCodexLocalAccessLadder(
+  enabled: boolean,
+  autoRetry: boolean,
+  maxRetries: number,
+): Promise<CodexLocalAccessLadderState> {
+  return await invoke("codex_local_access_update_ladder", {
+    enabled,
+    autoRetry,
+    maxRetries,
+  });
+}
+
+/** 锁定当前层(0-4)。写盘后由 sidecar 在 3 秒内热加载生效。 */
+export async function updateCodexLocalAccessLadderLevel(
+  level: number,
+): Promise<CodexLocalAccessLadderState> {
+  return await invoke("codex_local_access_update_ladder_level", { level });
+}
+
+// ---------- 本分支自有: 工具路由 ----------
+
+/** 读取工具路由配置。返回 null 表示尚未初始化。 */
+export async function getCodexLocalAccessToolRouterState(): Promise<CodexLocalAccessToolRouterState | null> {
+  return await invoke("codex_local_access_tool_router_state");
+}
+
+/** 保存整份工具路由配置(任务档案 + 分类规则)。 */
+export async function updateCodexLocalAccessToolRouter(
+  state: CodexLocalAccessToolRouterState,
+): Promise<CodexLocalAccessToolRouterState> {
+  return await invoke("codex_local_access_update_tool_router", { state });
+}
+
+/** 只切工具路由总开关, 保留已配置的档案与规则。 */
+export async function updateCodexLocalAccessToolRouterEnabled(
+  enabled: boolean,
+): Promise<CodexLocalAccessToolRouterState> {
+  return await invoke("codex_local_access_update_tool_router_enabled", { enabled });
 }
