@@ -176,6 +176,9 @@ const ManualPage = lazy(() =>
 const ApiKeyFunPage = lazy(() =>
   import('./pages/ApiKeyFunPage').then((module) => ({ default: module.ApiKeyFunPage })),
 );
+const WorkshopPage = lazy(() =>
+  import('./pages/WorkshopPage'),
+);
 const InstancesPage = lazy(() =>
   import('./pages/InstancesPage').then((module) => ({ default: module.InstancesPage })),
 );
@@ -203,6 +206,7 @@ const LogViewerModal = lazy(() =>
 const ACTIVE_PAGE_STORAGE_KEY = 'agtools.active_page';
 const RENDERABLE_PAGE_VALUES: readonly Page[] = [
   'dashboard',
+  'workshop',
   'api-relay',
   'overview',
   'codex',
@@ -4015,6 +4019,9 @@ function MainApp() {
               onOpenPlatformLayout={openPlatformLayoutModal}
               onEasterEggTriggerClick={handleBreakoutEntryTriggerClick}
             />
+          </VisibleBootPage>
+          <VisibleBootPage when={page === 'workshop'}>
+            <WorkshopPage />
           </VisibleBootPage>
           <VisibleBootPage when={page === 'api-relay'}>
             <ApiKeyFunPage />

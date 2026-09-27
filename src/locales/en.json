@@ -457,7 +457,8 @@
     "2faManager": "2FA",
     "claude": "Claude",
     "openrouter": "OpenRouter",
-    "opencode": "OpenCode"
+    "opencode": "OpenCode",
+    "workshop": "Workshop"
   },
   "sponsors": {
     "pageTitle": "Sponsors",

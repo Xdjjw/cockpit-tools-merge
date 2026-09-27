@@ -78,6 +78,8 @@
       "icons/icon.ico"
     ],
     "resources": {
+      "resources/devconduit-prompts/": "devconduit-prompts/",
+      "resources/devconduit-skills/": "devconduit-skills/",
       "../scripts/claude-desktop-auth-helper.cjs": "scripts/claude-desktop-auth-helper.cjs",
       "../src/assets/icons/antigravity-menu.png": "native-menu-icons/antigravity-menu.png",
       "../src/assets/icons/claude.png": "native-menu-icons/claude.png",
