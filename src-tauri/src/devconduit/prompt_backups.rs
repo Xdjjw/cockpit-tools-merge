@@ -498,10 +498,10 @@ mod tests {
             Local::now().timestamp_nanos_opt().unwrap_or_default()
         ));
         ensure_directory(&codex_dir).expect("create codex test dir");
-        let prompt_path = codex_dir.join("gpt5.5-unrestricted.md");
+        let prompt_path = codex_dir.join("codex-keysmith.md");
         write_text(
             &config_path(&codex_dir),
-            "model_instructions_file = \"./gpt5.5-unrestricted.md\"\n",
+            "model_instructions_file = \"./codex-keysmith.md\"\n",
         )
         .expect("write original config");
         write_text(&agents_path(&codex_dir), "# Original agents\n").expect("write original agents");
@@ -513,7 +513,7 @@ mod tests {
 
         write_text(
             &config_path(&codex_dir),
-            "model_instructions_file = \"./gpt5.5-unrestricted.md\"\nmodel = \"changed\"\n",
+            "model_instructions_file = \"./codex-keysmith.md\"\nmodel = \"changed\"\n",
         )
         .expect("mutate config");
         write_text(&agents_path(&codex_dir), "# Changed agents\n").expect("mutate agents");
@@ -524,7 +524,7 @@ mod tests {
 
         assert_eq!(
             read_to_string_if_exists(&config_path(&codex_dir)).expect("read config"),
-            "model_instructions_file = \"./gpt5.5-unrestricted.md\"\n"
+            "model_instructions_file = \"./codex-keysmith.md\"\n"
         );
         assert_eq!(
             read_to_string_if_exists(&agents_path(&codex_dir)).expect("read agents"),
