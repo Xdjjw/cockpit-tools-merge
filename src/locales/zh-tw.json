@@ -410,6 +410,7 @@
     "show": "顯示"
   },
   "nav": {
+    "workshop": "工坊",
     "overview": "Antigravity IDE",
     "accounts": "帳號管理",
     "wakeup": "喚醒任務",
