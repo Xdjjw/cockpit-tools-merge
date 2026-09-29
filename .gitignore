@@ -5,3 +5,6 @@ target/
 .ctmp/
 *.exe
 *.msi
+# Sidecar binaries are built per-platform by scripts/build-sidecar.sh (CI does
+# the same); never commit the cross-compiled ~40MB artifacts.
+sidecars/cockpit-cliproxy/bin/
