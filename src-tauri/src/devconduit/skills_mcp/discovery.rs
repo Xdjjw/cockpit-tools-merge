@@ -315,6 +315,27 @@ fn common_candidates(kind: HostKind) -> Vec<PathBuf> {
             }));
         }
     }
+    // IDA ships natively on Linux (x64dbg and Cheat Engine do not), typically
+    // unpacked under /opt or the user's home directory.
+    #[cfg(target_os = "linux")]
+    if matches!(kind, HostKind::Ida) {
+        let mut roots = vec![Path::new("/opt").to_path_buf()];
+        if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+            roots.push(home.join(".local/share"));
+        }
+        for root in roots {
+            if let Ok(entries) = fs::read_dir(&root) {
+                result.extend(entries.flatten().map(|entry| entry.path()).filter(|path| {
+                    path.file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| {
+                            let lower = name.to_ascii_lowercase();
+                            lower.starts_with("ida") && (lower.contains("pro") || lower == "idapro")
+                        })
+                }));
+            }
+        }
+    }
     result
 }
 

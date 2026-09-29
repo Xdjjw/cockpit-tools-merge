@@ -172,6 +172,11 @@ jobs:
         with:
           go-version-file: sidecars/cockpit-cliproxy/go.mod
           cache-dependency-path: sidecars/cockpit-cliproxy/go.sum
+      # tauri.conf.json declares the sidecar under bundle.externalBin; the
+      # triple-named binary must exist before `tauri build` runs.
+      - name: 🐹 Build Go sidecar binary
+        shell: bash
+        run: bash scripts/build-sidecar.sh "x86_64-pc-windows-msvc"
 
       - name: ⚙️ Node.js setup
         uses: actions/setup-node@v4
@@ -277,6 +282,11 @@ jobs:
         with:
           go-version-file: sidecars/cockpit-cliproxy/go.mod
           cache-dependency-path: sidecars/cockpit-cliproxy/go.sum
+      # tauri.conf.json declares the sidecar under bundle.externalBin; the
+      # triple-named binary must exist before `tauri build` runs.
+      - name: 🐹 Build Go sidecar binary
+        shell: bash
+        run: bash scripts/build-sidecar.sh "aarch64-apple-darwin"
 
       - name: ⚙️ Node.js setup
         uses: actions/setup-node@v4
@@ -390,6 +400,11 @@ jobs:
         with:
           go-version-file: sidecars/cockpit-cliproxy/go.mod
           cache-dependency-path: sidecars/cockpit-cliproxy/go.sum
+      # tauri.conf.json declares the sidecar under bundle.externalBin; the
+      # triple-named binary must exist before `tauri build` runs.
+      - name: 🐹 Build Go sidecar binary
+        shell: bash
+        run: bash scripts/build-sidecar.sh "x86_64-apple-darwin"
 
       - name: ⚙️ Node.js setup
         uses: actions/setup-node@v4
@@ -504,6 +519,11 @@ jobs:
         with:
           go-version-file: sidecars/cockpit-cliproxy/go.mod
           cache-dependency-path: sidecars/cockpit-cliproxy/go.sum
+      # tauri.conf.json declares the sidecar under bundle.externalBin; the
+      # triple-named binary must exist before `tauri build` runs.
+      - name: 🐹 Build Go sidecar binary
+        shell: bash
+        run: bash scripts/build-sidecar.sh "universal-apple-darwin"
 
       - name: ⚙️ Node.js setup
         uses: actions/setup-node@v4
@@ -609,6 +629,11 @@ jobs:
         with:
           go-version-file: sidecars/cockpit-cliproxy/go.mod
           cache-dependency-path: sidecars/cockpit-cliproxy/go.sum
+      # tauri.conf.json declares the sidecar under bundle.externalBin; the
+      # triple-named binary must exist before `tauri build` runs.
+      - name: 🐹 Build Go sidecar binary
+        shell: bash
+        run: bash scripts/build-sidecar.sh "${{ matrix.label == 'x86_64' && 'x86_64-unknown-linux-gnu' || 'aarch64-unknown-linux-gnu' }}"
 
       - name: ⚙️ Node.js setup
         uses: actions/setup-node@v4

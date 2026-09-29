@@ -53,3 +53,8 @@ docs/plugin-architecture-proposal.md
 .qoder/
 
 sidecars/mihomo/bin/
+.cargo-target/
+.ctmp/
+# Local Windows build artifacts (never commit installers or binaries)
+*.exe
+*.msi
