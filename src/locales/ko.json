@@ -372,6 +372,7 @@
     "optional": "(선택)"
   },
   "nav": {
+    "workshop": "공방",
     "overview": "Antigravity IDE​",
     "accounts": "계정 관리",
     "wakeup": "깨우기 작업",

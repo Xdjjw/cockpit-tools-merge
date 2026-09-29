@@ -1,0 +1,32 @@
+# Normalize everything to LF. The Windows test harnesses match source
+# anchors containing literal "\n" (e.g. useCodexAccountsOAuthController
+# tests) and CI's Windows runner checks out CRLF without this, breaking
+# them. Shell scripts under scripts/ also require LF.
+* text=auto eol=lf
+
+# Windows-native sources may keep CRLF
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.exe binary
+*.dll binary
+*.node binary
+*.zip binary
+*.gz binary
+*.dmg binary
+*.deb binary
+*.rpm binary
+*.AppImage binary
+*.wasm binary

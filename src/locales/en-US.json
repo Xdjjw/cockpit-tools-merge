@@ -419,6 +419,7 @@
     }
   },
   "nav": {
+    "workshop": "Workshop",
     "overview": "Antigravity IDE",
     "accounts": "Accounts",
     "wakeup": "Wakeup Tasks",
