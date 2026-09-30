@@ -281,22 +281,6 @@ jobs:
           gh release upload "${TAG}" "${ASSETS[@]}" --clobber
           echo "Uploaded ${#ASSETS[@]} Windows assets"
 
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release/build_target_latest_json.cjs \
-            --version "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --assets-dir "release-assets" \
-            --notes-file "release-metadata/release-notes.md" \
-            --published-at "$(cat release-metadata/published-at.txt)" \
-            --targets "windows-x86_64-msi,windows-x86_64-nsis" \
-            --output-dir "target-manifests"
-          gh release upload "v${VERSION}" target-manifests/*.json --clobber
-
-      # Fallback only: prepare should already have published with legacy latest.json.
       - name: 🚀 Ensure staged release is published
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -319,15 +303,6 @@ jobs:
       # Mid-stage verify uses the tag download URL so parallel jobs do not race
       # on /releases/latest/ before this release is marked latest (or before
       # other platforms finish). Public /latest/ is checked in finalize.
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release/verify_published_updater_manifests.cjs \
-            --version "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --targets "windows-x86_64-msi,windows-x86_64-nsis" \
-            --latest-base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}"
-
   build-macos-aarch64:
     name: "🏗️ Build: macOS Apple Silicon"
     # Parallel with Windows / macOS Intel after prepare (no hard platform deps).
@@ -430,31 +405,6 @@ jobs:
           gh release upload "${TAG}" "${ASSETS[@]}" --clobber
           echo "Uploaded ${#ASSETS[@]} macOS Apple Silicon assets"
 
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release/build_target_latest_json.cjs \
-            --version "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --assets-dir "release-assets" \
-            --notes-file "release-metadata/release-notes.md" \
-            --published-at "$(cat release-metadata/published-at.txt)" \
-            --targets "darwin-aarch64-app" \
-            --output-dir "target-manifests"
-          gh release upload "v${VERSION}" target-manifests/*.json --clobber
-
-      # Tag URL (not /releases/latest/) — see Windows verify comment.
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release/verify_published_updater_manifests.cjs \
-            --version "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --targets "darwin-aarch64-app" \
-            --latest-base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}"
-
   build-macos-x86_64:
     name: "🏗️ Build: macOS Intel"
     # Parallel with Windows / macOS Apple Silicon after prepare.
@@ -556,31 +506,6 @@ jobs:
           test "${#ASSETS[@]}" -gt 0
           gh release upload "${TAG}" "${ASSETS[@]}" --clobber
           echo "Uploaded ${#ASSETS[@]} macOS Intel assets"
-
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release/build_target_latest_json.cjs \
-            --version "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --assets-dir "release-assets" \
-            --notes-file "release-metadata/release-notes.md" \
-            --published-at "$(cat release-metadata/published-at.txt)" \
-            --targets "darwin-x86_64-app" \
-            --output-dir "target-manifests"
-          gh release upload "v${VERSION}" target-manifests/*.json --clobber
-
-      # Tag URL (not /releases/latest/) — see Windows verify comment.
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release/verify_published_updater_manifests.cjs \
-            --version "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --targets "darwin-x86_64-app" \
-            --latest-base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}"
 
   build-macos-universal:
     name: "🏗️ Build: macOS Universal"
@@ -787,31 +712,6 @@ jobs:
           gh release upload "${TAG}" "${ASSETS[@]}" --clobber
           echo "Uploaded ${#ASSETS[@]} Linux assets"
 
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release/build_target_latest_json.cjs \
-            --version "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --assets-dir "release-assets" \
-            --notes-file "release-metadata/release-notes.md" \
-            --published-at "$(cat release-metadata/published-at.txt)" \
-            --targets "${{ matrix.targets }}" \
-            --output-dir "target-manifests"
-          gh release upload "v${VERSION}" target-manifests/*.json --clobber
-
-      # Tag URL (not /releases/latest/) — see Windows verify comment.
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release/verify_published_updater_manifests.cjs \
-            --version "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --targets "${{ matrix.targets }}" \
-            --latest-base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}"
-
   finalize-legacy-latest:
     name: 🏁 Finalize Legacy Updater Manifest
     # Wait for every platform build so latest.json is complete.
@@ -865,7 +765,7 @@ jobs:
             exit 1
           fi
 
-      - name: 🧭 Detect updater signature artifacts
+      - name: Detect updater signature artifacts
         id: updater_sigs
         shell: bash
         run: |
@@ -981,7 +881,7 @@ jobs:
   update-homebrew-cask:
     name: Update Homebrew Cask
     # Disabled in this fork: no homebrew tap and no main branch to PR against.
-    if: false
+    if: ${{ github.repository == 'jlcodes99/cockpit-tools' }}
     needs:
       - prepare-release
       - finalize-legacy-latest
