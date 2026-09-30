@@ -100,7 +100,6 @@ export function useCodexAccountsOAuthController(context: Pick<ReturnType<typeof 
     setSavingPendingOAuthAccount,
     showAddModal,
     sortBy,
-    sponsorModule,
     syncImportedAccountsToApiService,
     updateApiKeyBoundOAuthAccount,
     t,
@@ -325,9 +324,10 @@ export function useCodexAccountsOAuthController(context: Pick<ReturnType<typeof 
       () => findCodexApiProviderPresetById(apiProviderPresetId),
       [apiProviderPresetId],
     );
-    const sponsorApiProviderTemplates = useMemo(
-      () => normalizeSponsorApiProviderTemplates(sponsorModule?.sponsors),
-      [sponsorModule?.sponsors],
+    // FORK: 中转站（apikey.fan 推广）供应商模板永久移除，避免默认选中 sponsor 预设
+    const sponsorApiProviderTemplates = useMemo<ReturnType<typeof normalizeSponsorApiProviderTemplates>>(
+      () => [],
+      [],
     );
     const selectedSponsorApiProviderTemplate = useMemo(
       () =>

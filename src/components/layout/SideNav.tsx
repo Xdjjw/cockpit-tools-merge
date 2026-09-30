@@ -36,7 +36,6 @@ interface SideNavProps {
   updateProgress: number;
   onUpdateActionClick: () => void;
   updateRemindersEnabled: boolean;
-  sponsorEntryVisible: boolean;
   onOpenLogViewer: () => void;
 }
 
@@ -143,7 +142,6 @@ export function SideNav({
   updateProgress,
   onUpdateActionClick,
   updateRemindersEnabled,
-  sponsorEntryVisible,
   onOpenLogViewer,
 }: SideNavProps) {
   const { t } = useTranslation();
@@ -183,7 +181,6 @@ export function SideNav({
     hiddenEntryIds,
     sidebarEntryIds,
     platformGroups,
-    apiRelaySidebarVisible,
     apiRelayEntryOrder,
   } = usePlatformLayoutStore();
   const remoteHiddenPlatformIds = useRemoteConfigStore((state) => state.hiddenPlatformIds);
@@ -216,7 +213,7 @@ export function SideNav({
       isMenuVisiblePlatform(platformId) && !remoteHiddenPlatformSet.has(platformId),
     [remoteHiddenPlatformSet],
   );
-  const apiRelayEntryVisible = sponsorEntryVisible && apiRelaySidebarVisible;
+  const apiRelayEntryVisible = false; // FORK: 中转站入口永久移除（后续 port 需重新应用）
 
   const orderedEntries = useMemo<SideNavEntry[]>(() => {
     const platformEntries: SideNavEntry[] = orderedEntryIds

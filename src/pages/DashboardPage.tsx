@@ -15,7 +15,6 @@ import { useZcodeAccountStore } from '../stores/useZcodeAccountStore';
 import { useTraeAccountStore } from '../stores/useTraeAccountStore';
 import { useWorkbuddyAccountStore } from '../stores/useWorkbuddyAccountStore';
 import { useZedAccountStore } from '../stores/useZedAccountStore';
-import { useSponsorStore } from '../stores/useSponsorStore';
 import { useRemoteConfigStore } from '../stores/useRemoteConfigStore';
 import {
   API_RELAY_LAYOUT_ENTRY_ID,
@@ -361,7 +360,7 @@ export function DashboardPage({
     apiRelayEntryOrder,
     setHiddenEntry,
   } = usePlatformLayoutStore();
-  const apiRelayEntryEnabled = useSponsorStore((state) => Boolean(state.state.sponsorModule));
+  const apiRelayEntryEnabled = false; // FORK: 中转站卡片永久移除
   const remoteHiddenPlatformIds = useRemoteConfigStore((state) => state.hiddenPlatformIds);
   const apiRelayDashboardEnabled = apiRelayEntryEnabled && apiRelayDashboardVisible;
   const hiddenEntrySet = useMemo(() => new Set(hiddenEntryIds), [hiddenEntryIds]);

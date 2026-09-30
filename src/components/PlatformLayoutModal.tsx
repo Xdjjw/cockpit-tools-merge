@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import apiKeyFunIcon from '../assets/icons/apikey-fun.png';
 import { isMenuVisiblePlatform, MENU_VISIBLE_PLATFORM_IDS, PlatformId } from '../types/platform';
-import { useSponsorStore } from '../stores/useSponsorStore';
 import {
   API_RELAY_LAYOUT_ENTRY_ID,
   ApiRelayLayoutEntryId,
@@ -385,7 +384,7 @@ export function PlatformLayoutModal({
     removePlatformGroup,
     resetPlatformLayout,
   } = usePlatformLayoutStore();
-  const apiRelayEntryEnabled = useSponsorStore((state) => Boolean(state.state.sponsorModule));
+  const apiRelayEntryEnabled = false; // FORK: 中转站布局项永久移除
 
   const [draggingId, setDraggingId] = useState<LayoutEntryId | null>(null);
   const [dropTargetId, setDropTargetId] = useState<LayoutEntryId | null>(null);

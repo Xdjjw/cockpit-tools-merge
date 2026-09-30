@@ -1046,7 +1046,6 @@ export function SettingsGeneralPanel(props: SettingsPageViewProps) {
                     <option value="instances">{t('nav.instances', '应用多开')}</option>
                     <option value="wakeup">{t('nav.wakeup', '唤醒任务')}</option>
                     <option value="2fa">{t('nav.2faManager', '2FA 管理')}</option>
-                    <option value="api-relay">{t('nav.apiRelay', '中转站')}</option>
                     <option value="manual">{t('nav.manual', '使用手册')}</option>
                     <option value="settings">{t('nav.settings', '设置')}</option>
                   </select>

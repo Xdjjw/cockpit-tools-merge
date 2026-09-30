@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.63] - 2026-09-30
+
+### Removed
+
+- Removed the partner "API Relay" (apikey.fan) entry: sidebar tab, dashboard card, layout option, default-page option, Codex/Claude provider presets, and all related promo hints.
+- Removed in-app advertising: top promo banner, announcement popups, and sponsor module fetches; the app no longer contacts the promo endpoints.
+- Rebuilt on upstream v1.3.62 with all fork features preserved (Ladder, ToolRouter, DevConduit, Workshop).
+
+---
+
 ## [1.3.62] - 2026-09-29
 
 ### Fixed
