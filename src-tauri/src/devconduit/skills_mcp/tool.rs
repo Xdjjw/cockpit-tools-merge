@@ -1582,6 +1582,115 @@ pub(crate) fn uninstall_tool_skill_inner(
     })
 }
 
+/// 全引擎 MCP 操作的单引擎结果（安装/卸载/启停共用）。
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpAllEngineReport {
+    pub(crate) tool: String,
+    pub(crate) tool_label: String,
+    pub(crate) ok: bool,
+    pub(crate) message: String,
+}
+
+fn report_skip(tool: ToolId, reason: &str) -> McpAllEngineReport {
+    McpAllEngineReport {
+        tool: tool.as_str().to_string(),
+        tool_label: tool.label().to_string(),
+        ok: true,
+        message: reason.to_string(),
+    }
+}
+
+fn report_result(tool: ToolId, outcome: Result<String>) -> McpAllEngineReport {
+    match outcome {
+        Ok(message) => McpAllEngineReport {
+            tool: tool.as_str().to_string(),
+            tool_label: tool.label().to_string(),
+            ok: true,
+            message,
+        },
+        Err(error) => McpAllEngineReport {
+            tool: tool.as_str().to_string(),
+            tool_label: tool.label().to_string(),
+            ok: false,
+            message: error.to_string(),
+        },
+    }
+}
+
+/// 把同一份 MCP 集成安装到全部引擎；单引擎失败不影响其它引擎。
+pub(crate) fn install_mcp_integration_all_inner(
+    config_dir: Option<String>,
+    input: &super::catalog::McpIntegrationInstallInput,
+) -> Result<Vec<McpAllEngineReport>> {
+    let mut reports = Vec::new();
+    for tool in ToolId::ALL {
+        let outcome = super::catalog::install_mcp_integration_inner(
+            tool,
+            config_dir.clone(),
+            input.clone(),
+        )
+        .map(|result| result.message);
+        reports.push(report_result(tool, outcome));
+    }
+    Ok(reports)
+}
+
+/// 从全部引擎卸载同一个 MCP（未安装的引擎跳过而非报错）。
+pub(crate) fn uninstall_mcp_all_inner(
+    config_dir: Option<String>,
+    id: &str,
+) -> Result<Vec<McpAllEngineReport>> {
+    let mut reports = Vec::new();
+    for tool in ToolId::ALL {
+        let installed = list_tool_mcp(tool, config_dir.clone())
+            .map(|servers| servers.iter().any(|server| server.id == id))
+            .unwrap_or(false);
+        if !installed {
+            reports.push(report_skip(tool, "未安装，已跳过"));
+            continue;
+        }
+        let outcome =
+            uninstall_tool_mcp_inner(tool, config_dir.clone(), id.to_string())
+                .map(|result| result.message);
+        reports.push(report_result(tool, outcome));
+    }
+    Ok(reports)
+}
+
+/// 对全部引擎统一启停同一个 MCP（未安装的引擎跳过而非报错）。
+pub(crate) fn toggle_mcp_all_inner(
+    config_dir: Option<String>,
+    id: &str,
+    enabled: bool,
+) -> Result<Vec<McpAllEngineReport>> {
+    let mut reports = Vec::new();
+    for tool in ToolId::ALL {
+        let installed = list_tool_mcp(tool, config_dir.clone())
+            .map(|servers| servers.iter().any(|server| server.id == id))
+            .unwrap_or(false);
+        if !installed {
+            reports.push(report_skip(tool, "未安装，已跳过"));
+            continue;
+        }
+        let outcome = toggle_tool_mcp_inner(
+            tool,
+            config_dir.clone(),
+            id.to_string(),
+            enabled,
+        )
+        .map(|_| {
+            format!(
+                "已在 {} {} MCP {id}",
+                tool.label(),
+                if enabled { "启用" } else { "停用" }
+            )
+        });
+        reports.push(report_result(tool, outcome));
+    }
+    Ok(reports)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

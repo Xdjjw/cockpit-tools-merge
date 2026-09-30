@@ -203,6 +203,13 @@ export interface McpIntegrationInstallInput {
   sourceMode?: string | null;
 }
 
+export interface McpAllEngineReport {
+  tool: string;
+  toolLabel: string;
+  ok: boolean;
+  message: string;
+}
+
 export interface ToolStatus {
   id: string;
   label: string;

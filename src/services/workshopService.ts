@@ -5,6 +5,7 @@ import type {
   ClaudeActionResult,
   ClaudePromptState,
   CodexPromptState,
+  McpAllEngineReport,
   McpHostDiscovery,
   McpHostInstallPlan,
   McpIntegrationInstallInput,
@@ -208,6 +209,26 @@ export function installMcpIntegration(
   configDir?: string,
 ): Promise<SkillsMcpActionResult> {
   return invoke("dc_install_mcp_integration", { tool, configDir: configDir ?? null, input });
+}
+
+// FORK: 全引擎 MCP 操作 —— 安装/卸载/启停一次性作用于全部已支持引擎。
+export function installMcpIntegrationAll(
+  input: McpIntegrationInstallInput,
+  configDir?: string,
+): Promise<McpAllEngineReport[]> {
+  return invoke("dc_install_mcp_integration_all", { configDir: configDir ?? null, input });
+}
+
+export function uninstallMcpAll(id: string, configDir?: string): Promise<McpAllEngineReport[]> {
+  return invoke("dc_uninstall_mcp_all", { configDir: configDir ?? null, id });
+}
+
+export function toggleMcpAll(
+  id: string,
+  enabled: boolean,
+  configDir?: string,
+): Promise<McpAllEngineReport[]> {
+  return invoke("dc_toggle_mcp_all", { configDir: configDir ?? null, id, enabled });
 }
 
 export function discoverMcpHosts(): Promise<McpHostDiscovery[]> {

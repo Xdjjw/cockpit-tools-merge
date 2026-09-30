@@ -191,6 +191,10 @@
   border-radius: 8px;
   font-size: 12px;
 }
+.workshop-notice-pre {
+  white-space: pre-line;
+  text-align: left;
+}
 
 .workshop-status-card {
   display: flex;

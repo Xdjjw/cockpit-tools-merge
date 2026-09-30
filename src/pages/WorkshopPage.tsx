@@ -22,6 +22,7 @@ import type {
   CodexPromptState,
   ManagedMcpServer,
   ManagedSkill,
+  McpAllEngineReport,
   McpHostDiscovery,
   PiPromptState,
   PromptBackupEntry,
@@ -593,8 +594,14 @@ function PromptsTab() {
 // ---------------- MCP Tab ----------------
 
 function McpTab() {
-  const [tool, setTool] = useState<Engine>("codex");
-  const [state, setState] = useState<SkillsMcpState | null>(null);
+  // FORK: MCP 全局化 —— 不再按引擎各管一套。安装/启停/删除一次性作用于全部引擎，
+  // 列表为跨引擎聚合视图（同一 server 只出现一行，标注已装引擎）。
+  const ENGINE_TOOLS: Array<{ id: Engine; label: string }> = [
+    { id: "codex", label: "Codex" },
+    { id: "claude", label: "Claude Code" },
+    { id: "pi", label: "Pi" },
+  ];
+  const [statesByTool, setStatesByTool] = useState<Partial<Record<Engine, SkillsMcpState>>>({});
   const [hosts, setHosts] = useState<McpHostDiscovery[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -604,31 +611,42 @@ function McpTab() {
     setBusy(true);
     setError(null);
     try {
-      const s = await workshop.getSkillsMcpState(tool);
-      setState(s);
-      const h = await workshop.discoverMcpHosts();
+      const [codex, claude, pi, h] = await Promise.all([
+        workshop.getSkillsMcpState("codex"),
+        workshop.getSkillsMcpState("claude"),
+        workshop.getSkillsMcpState("pi"),
+        workshop.discoverMcpHosts(),
+      ]);
+      setStatesByTool({ codex, claude, pi });
       setHosts(h);
     } catch (e) {
       setError(String(e));
     } finally {
       setBusy(false);
     }
-  }, [tool]);
+  }, []);
 
   useEffect(() => {
     void reload();
   }, [reload]);
 
-  const handleToggle = async (server: ManagedMcpServer, enabled: boolean) => {
-    setState(await workshop.toggleMcp(tool, server.id, enabled));
+  const formatReports = (reports: McpAllEngineReport[]) => {
+    const okParts = reports.filter((r) => r.ok).map((r) => `${r.toolLabel}（${r.message}）`);
+    const failParts = reports.filter((r) => !r.ok).map((r) => `${r.toolLabel}：${r.message}`);
+    const lines: string[] = [];
+    if (okParts.length > 0) lines.push(`成功：${okParts.join("、")}`);
+    if (failParts.length > 0) lines.push(`失败：${failParts.join("、")}`);
+    return lines.join("\n");
   };
 
-  const handleUninstall = async (server: ManagedMcpServer) => {
+  const handleToggleAll = async (id: string, enabled: boolean) => {
     setBusy(true);
+    setError(null);
+    setNotice(null);
     try {
-      const r = await workshop.uninstallMcp(tool, server.id);
-      setNotice(r.message);
-      setState(r.state);
+      const reports = await workshop.toggleMcpAll(id, enabled);
+      setNotice(`已${enabled ? "启用" : "停用"}全部引擎。\n${formatReports(reports)}`);
+      await reload();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -636,18 +654,33 @@ function McpTab() {
     }
   };
 
-  const handleInstall = async (integrationId: string) => {
+  const handleDeleteAll = async (id: string) => {
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      const r = await workshop.installMcpIntegration(tool, {
+      const reports = await workshop.uninstallMcpAll(id);
+      setNotice(`已从全部引擎删除。\n${formatReports(reports)}`);
+      await reload();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleInstallAll = async (integrationId: string) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const reports = await workshop.installMcpIntegrationAll({
         integrationId,
         sourceMode: "managed",
         autoInstall: true,
       });
-      setNotice(r.message);
-      setState(r.state);
+      setNotice(`安装完成。\n${formatReports(reports)}`);
+      await reload();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -661,63 +694,61 @@ function McpTab() {
     return d.candidates[0];
   };
 
-  const installed = (state?.mcpServers ?? []).filter((s) => s.installed);
+  // 聚合三个引擎的 server：id 相同视为同一 MCP。
+  const aggregated: Array<{ server: ManagedMcpServer; tools: string[]; anyEnabled: boolean }> = (() => {
+    const byId = new Map<string, { server: ManagedMcpServer; tools: string[]; anyEnabled: boolean }>();
+    for (const { id, label } of ENGINE_TOOLS) {
+      for (const server of statesByTool[id]?.mcpServers ?? []) {
+        const entry = byId.get(server.id) ?? { server, tools: [], anyEnabled: false };
+        if (!entry.tools.includes(label)) entry.tools.push(label);
+        entry.anyEnabled = entry.anyEnabled || server.enabled;
+        if (server.enabled) entry.server = server;
+        byId.set(server.id, entry);
+      }
+    }
+    return Array.from(byId.values()).sort((a, b) => a.server.name.localeCompare(b.server.name));
+  })();
+
   const available = MCP_DIRECTORY.filter(
-    (m) => !installed.some((s) => s.id === m.id || s.summary.includes(m.name)),
+    (m) => !aggregated.some((a) => a.server.id === m.id || a.server.summary.includes(m.name)),
   );
 
   return (
     <div className="workshop-tab-body">
       {error && <div className="workshop-error">{error}</div>}
-      {notice && <div className="workshop-notice">{notice}</div>}
+      {notice && <div className="workshop-notice workshop-notice-pre">{notice}</div>}
       <div className="workshop-toolbar">
-        <label>目标引擎</label>
-        <button className={`btn btn-sm ${tool === "codex" ? "btn-primary" : "btn-secondary"}`} onClick={() => setTool("codex")}>Codex</button>
-        <button className={`btn btn-sm ${tool === "claude" ? "btn-primary" : "btn-secondary"}`} onClick={() => setTool("claude")}>Claude Code</button>
-        <button className={`btn btn-sm ${tool === "pi" ? "btn-primary" : "btn-secondary"}`} onClick={() => setTool("pi")}>Pi</button>
+        <span className="ws-card-sub">安装 / 启停 / 删除会同时作用于全部引擎（Codex、Claude Code、Pi 等）</span>
         <button className="btn btn-sm btn-secondary" onClick={() => void reload()} disabled={busy}><RefreshCw size={13} /> 刷新</button>
       </div>
 
       <div className="workshop-section">
-        <div className="workshop-section-title">已挂载 MCP Server（{installed.length}）</div>
+        <div className="workshop-section-title">已挂载 MCP Server（{aggregated.length}）</div>
         <div className="workshop-mcp-list">
-          {(state?.mcpServers ?? []).map((s) => (
-            <div className="ws-mcp-row" key={s.id}>
+          {aggregated.map(({ server, tools, anyEnabled }) => (
+            <div className="ws-mcp-row" key={server.id}>
               <div className="ws-mcp-main">
-                <strong>{s.name}</strong>
-                <span className="ws-source">{s.transport}{s.enabled ? " · 已启用" : " · 已停用"}</span>
-                {s.summary && <div className="ws-card-sub">{s.summary}</div>}
-                {s.command && <div className="ws-mono">{s.command}</div>}
-                {s.url && <div className="ws-mono">{s.url}</div>}
+                <strong>{server.name}</strong>
+                <span className="ws-source">{server.transport}{anyEnabled ? " · 已启用" : " · 已停用"}</span>
+                <span className="ws-badge">{tools.join(" / ") || "未挂载到任何引擎"}</span>
+                {server.summary && <div className="ws-card-sub">{server.summary}</div>}
+                {server.command && <div className="ws-mono">{server.command}</div>}
+                {server.url && <div className="ws-mono">{server.url}</div>}
               </div>
               <div className="ws-mcp-actions">
-                <button className={`btn btn-sm ${s.enabled ? "btn-secondary" : "btn-primary"}`} disabled={busy} onClick={() => void handleToggle(s, !s.enabled)}>
-                  {s.enabled ? "停用" : "启用"}
+                <button className={`btn btn-sm ${anyEnabled ? "btn-secondary" : "btn-primary"}`} disabled={busy}
+                  onClick={() => void handleToggleAll(server.id, !anyEnabled)}>
+                  {anyEnabled ? "全部停用" : "全部启用"}
                 </button>
-                <button className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void handleUninstall(s)}>
-                  <Trash2 size={13} /> 卸载
+                <button className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void handleDeleteAll(server.id)}>
+                  <Trash2 size={13} /> 删除（全部引擎）
                 </button>
               </div>
             </div>
           ))}
-          {optimizedList(state).length === 0 && <div className="ws-empty">尚未挂载 MCP</div>}
+          {aggregated.length === 0 && <div className="ws-empty">尚未挂载 MCP</div>}
         </div>
       </div>
-      {state && optimizedList(state).length > 0 && (
-        <div className="workshop-mcp-list">
-          {optimizedList(state).map((s) => (
-            <div className="ws-mcp-row" key={`k-${s.id}`}>
-              <div className="ws-mcp-main"><strong>{s.name}</strong><span className="ws-source">{s.transport}（未安装副本）</span></div>
-              <div className="ws-mcp-actions">
-                <button className={`btn btn-sm ${s.enabled ? "btn-secondary" : "btn-primary"}`} disabled={busy} onClick={() => void handleToggle(s, !s.enabled)}>
-                  {s.enabled ? "停用" : "启用"}
-                </button>
-                <button className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void handleUninstall(s)}><Trash2 size={13} /> 卸载</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       <div className="workshop-section">
         <div className="workshop-section-title">自动接入目录</div>
@@ -737,8 +768,8 @@ function McpTab() {
                   <div className="ws-card-sub">未检测到宿主（可手动配置）</div>
                 )}
                 <div className="ws-card-foot">
-                  <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => void handleInstall(m.id)}>
-                    <FolderCog size={13} /> 自动获取并挂载
+                  <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => void handleInstallAll(m.id)}>
+                    <FolderCog size={13} /> 安装到全部引擎
                   </button>
                 </div>
               </div>
@@ -750,9 +781,9 @@ function McpTab() {
   );
 }
 
-function optimizedList(state: SkillsMcpState | null): ManagedMcpServer[] {
-  return (state?.mcpServers ?? []).filter((s) => !s.installed);
-}
+// ---------------- Skills Tab ----------------}
+
+// ---------------- Skills Tab ----------------}
 
 // ---------------- Skills Tab ----------------
 

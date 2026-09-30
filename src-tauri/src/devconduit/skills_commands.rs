@@ -11,8 +11,10 @@ use crate::devconduit::skills_mcp::host_install::{
 };
 use crate::devconduit::skills_mcp::tool::{
     build_tool_state_inner, check_tool_skill_updates_inner, import_tool_resources_inner,
-    install_tool_skill_zip_inner, preview_tool_import_inner, toggle_tool_mcp_inner,
-    toggle_tool_skill_inner, uninstall_tool_mcp_inner, uninstall_tool_skill_inner,
+    install_mcp_integration_all_inner, install_tool_skill_zip_inner, preview_tool_import_inner,
+    toggle_mcp_all_inner, toggle_tool_mcp_inner, toggle_tool_skill_inner,
+    uninstall_mcp_all_inner, uninstall_tool_mcp_inner, uninstall_tool_skill_inner,
+    McpAllEngineReport,
 };
 use crate::devconduit::skills_mcp::types::{SkillsMcpActionResult, SkillsMcpImportPreview, SkillsMcpState};
 use crate::devconduit::tools::{ToolId, ToolStatus};
@@ -140,6 +142,42 @@ pub(crate) async fn dc_install_mcp_integration(
     tauri::async_runtime::spawn_blocking(move || install_mcp_integration_inner(tool, config_dir, input))
         .await
         .map_err(|e| CodexxError::Config(format!("安装 MCP 集成失败: {e}")))?
+}
+
+/// FORK: 把同一份 MCP 集成安装到全部引擎（Codex/Claude/Grok/ZCode/Kilo/Pi）。
+#[tauri::command]
+pub(crate) async fn dc_install_mcp_integration_all(
+    config_dir: Option<String>,
+    input: McpIntegrationInstallInput,
+) -> Result<Vec<McpAllEngineReport>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        install_mcp_integration_all_inner(config_dir, &input)
+    })
+    .await
+    .map_err(|e| CodexxError::Config(format!("全引擎安装 MCP 集成失败: {e}")))?
+}
+
+/// FORK: 从全部引擎卸载同一个 MCP（未安装的引擎跳过）。
+#[tauri::command]
+pub(crate) async fn dc_uninstall_mcp_all(
+    config_dir: Option<String>,
+    id: String,
+) -> Result<Vec<McpAllEngineReport>> {
+    tauri::async_runtime::spawn_blocking(move || uninstall_mcp_all_inner(config_dir, &id))
+        .await
+        .map_err(|e| CodexxError::Config(format!("全引擎卸载 MCP 失败: {e}")))?
+}
+
+/// FORK: 在全部引擎统一启停同一个 MCP（未安装的引擎跳过）。
+#[tauri::command]
+pub(crate) async fn dc_toggle_mcp_all(
+    config_dir: Option<String>,
+    id: String,
+    enabled: bool,
+) -> Result<Vec<McpAllEngineReport>> {
+    tauri::async_runtime::spawn_blocking(move || toggle_mcp_all_inner(config_dir, &id, enabled))
+        .await
+        .map_err(|e| CodexxError::Config(format!("全引擎切换 MCP 状态失败: {e}")))?
 }
 
 #[tauri::command]
