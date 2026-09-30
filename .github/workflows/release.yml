@@ -172,11 +172,6 @@ jobs:
         with:
           go-version-file: sidecars/cockpit-cliproxy/go.mod
           cache-dependency-path: sidecars/cockpit-cliproxy/go.sum
-      # tauri.conf.json declares the sidecar under bundle.externalBin; the
-      # triple-named binary must exist before `tauri build` runs.
-      - name: 🐹 Build Go sidecar binary
-        shell: bash
-        run: bash scripts/build-sidecar.sh "x86_64-pc-windows-msvc"
 
       - name: ⚙️ Node.js setup
         uses: actions/setup-node@v4
@@ -206,7 +201,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          npx tauri build --ci
+          npx tauri build --ci --config src-tauri/tauri.ci.conf.json
 
       - name: 📥 Download release metadata
         uses: actions/download-artifact@v4
@@ -235,22 +230,6 @@ jobs:
           test "${#ASSETS[@]}" -gt 0
           gh release upload "${TAG}" "${ASSETS[@]}" --clobber
           echo "Uploaded ${#ASSETS[@]} Windows assets"
-
-      - name: 📤 Build and upload Windows updater manifests
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release/build_target_latest_json.cjs \
-            --version "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --assets-dir "release-assets" \
-            --notes-file "release-metadata/release-notes.md" \
-            --published-at "$(cat release-metadata/published-at.txt)" \
-            --targets "windows-x86_64-msi,windows-x86_64-nsis" \
-            --output-dir "target-manifests"
-          gh release upload "v${VERSION}" target-manifests/*.json --clobber
 
   build-macos-aarch64:
     name: "🏗️ Build: macOS Apple Silicon"
@@ -282,11 +261,6 @@ jobs:
         with:
           go-version-file: sidecars/cockpit-cliproxy/go.mod
           cache-dependency-path: sidecars/cockpit-cliproxy/go.sum
-      # tauri.conf.json declares the sidecar under bundle.externalBin; the
-      # triple-named binary must exist before `tauri build` runs.
-      - name: 🐹 Build Go sidecar binary
-        shell: bash
-        run: bash scripts/build-sidecar.sh "aarch64-apple-darwin"
 
       - name: ⚙️ Node.js setup
         uses: actions/setup-node@v4
@@ -316,7 +290,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          npx tauri build --ci --target aarch64-apple-darwin
+          npx tauri build --ci --config src-tauri/tauri.ci.conf.json --target aarch64-apple-darwin
 
       - name: 📝 Rebuild DMG with the Gatekeeper troubleshooting note
         shell: bash
@@ -354,22 +328,6 @@ jobs:
           gh release upload "${TAG}" "${ASSETS[@]}" --clobber
           echo "Uploaded ${#ASSETS[@]} macOS Apple Silicon assets"
 
-      - name: 📤 Build and upload macOS Apple Silicon updater manifest
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release/build_target_latest_json.cjs \
-            --version "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --assets-dir "release-assets" \
-            --notes-file "release-metadata/release-notes.md" \
-            --published-at "$(cat release-metadata/published-at.txt)" \
-            --targets "darwin-aarch64-app" \
-            --output-dir "target-manifests"
-          gh release upload "v${VERSION}" target-manifests/*.json --clobber
-
   build-macos-x86_64:
     name: "🏗️ Build: macOS Intel"
     # Parallel with Windows / macOS Apple Silicon after prepare.
@@ -400,11 +358,6 @@ jobs:
         with:
           go-version-file: sidecars/cockpit-cliproxy/go.mod
           cache-dependency-path: sidecars/cockpit-cliproxy/go.sum
-      # tauri.conf.json declares the sidecar under bundle.externalBin; the
-      # triple-named binary must exist before `tauri build` runs.
-      - name: 🐹 Build Go sidecar binary
-        shell: bash
-        run: bash scripts/build-sidecar.sh "x86_64-apple-darwin"
 
       - name: ⚙️ Node.js setup
         uses: actions/setup-node@v4
@@ -434,7 +387,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          npx tauri build --ci --target x86_64-apple-darwin
+          npx tauri build --ci --config src-tauri/tauri.ci.conf.json --target x86_64-apple-darwin
 
       - name: 📝 Rebuild DMG with the Gatekeeper troubleshooting note
         shell: bash
@@ -472,22 +425,6 @@ jobs:
           gh release upload "${TAG}" "${ASSETS[@]}" --clobber
           echo "Uploaded ${#ASSETS[@]} macOS Intel assets"
 
-      - name: 📤 Build and upload macOS Intel updater manifest
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release/build_target_latest_json.cjs \
-            --version "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --assets-dir "release-assets" \
-            --notes-file "release-metadata/release-notes.md" \
-            --published-at "$(cat release-metadata/published-at.txt)" \
-            --targets "darwin-x86_64-app" \
-            --output-dir "target-manifests"
-          gh release upload "v${VERSION}" target-manifests/*.json --clobber
-
   build-macos-universal:
     name: "🏗️ Build: macOS Universal"
     # This is an independent source build; run it in parallel with the two
@@ -519,11 +456,6 @@ jobs:
         with:
           go-version-file: sidecars/cockpit-cliproxy/go.mod
           cache-dependency-path: sidecars/cockpit-cliproxy/go.sum
-      # tauri.conf.json declares the sidecar under bundle.externalBin; the
-      # triple-named binary must exist before `tauri build` runs.
-      - name: 🐹 Build Go sidecar binary
-        shell: bash
-        run: bash scripts/build-sidecar.sh "universal-apple-darwin"
 
       - name: ⚙️ Node.js setup
         uses: actions/setup-node@v4
@@ -553,7 +485,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          npx tauri build --ci --target universal-apple-darwin
+          npx tauri build --ci --config src-tauri/tauri.ci.conf.json --target universal-apple-darwin
 
       - name: 📝 Rebuild DMG with the Gatekeeper troubleshooting note
         shell: bash
@@ -629,11 +561,6 @@ jobs:
         with:
           go-version-file: sidecars/cockpit-cliproxy/go.mod
           cache-dependency-path: sidecars/cockpit-cliproxy/go.sum
-      # tauri.conf.json declares the sidecar under bundle.externalBin; the
-      # triple-named binary must exist before `tauri build` runs.
-      - name: 🐹 Build Go sidecar binary
-        shell: bash
-        run: bash scripts/build-sidecar.sh "${{ matrix.label == 'x86_64' && 'x86_64-unknown-linux-gnu' || 'aarch64-unknown-linux-gnu' }}"
 
       - name: ⚙️ Node.js setup
         uses: actions/setup-node@v4
@@ -663,7 +590,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          npx tauri build --ci
+          npx tauri build --ci --config src-tauri/tauri.ci.conf.json
 
       - name: 📥 Download release metadata
         uses: actions/download-artifact@v4
@@ -693,24 +620,10 @@ jobs:
           gh release upload "${TAG}" "${ASSETS[@]}" --clobber
           echo "Uploaded ${#ASSETS[@]} Linux assets"
 
-      - name: 📤 Build and upload Linux updater manifests
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release/build_target_latest_json.cjs \
-            --version "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --assets-dir "release-assets" \
-            --notes-file "release-metadata/release-notes.md" \
-            --published-at "$(cat release-metadata/published-at.txt)" \
-            --targets "${{ matrix.targets }}" \
-            --output-dir "target-manifests"
-          gh release upload "v${VERSION}" target-manifests/*.json --clobber
-
   finalize-legacy-latest:
-    name: 🏁 Finalize Legacy Updater Manifest
+    name: Finalize Legacy Updater Manifest
+    outputs:
+      updater_sigs_present: ${{ steps.updater_sigs.outputs.present }}
     # Wait for every platform build so latest.json is complete.
     needs:
       - prepare-release
@@ -762,7 +675,20 @@ jobs:
             exit 1
           fi
 
-      - name: 🏗️ Build complete legacy latest.json
+      - name: Detect updater signature artifacts
+        id: updater_sigs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if compgen -G "release-assets/*.sig" > /dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No .sig artifacts (unsigned CI build); skipping legacy latest.json."
+          fi
+
+      - name: Build complete legacy latest.json
+        if: steps.updater_sigs.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -774,7 +700,8 @@ jobs:
             --published-at "$(cat release-metadata/published-at.txt)" \
             --output "latest.json"
 
-      - name: 🔍 Validate complete legacy latest.json
+      - name: Validate complete legacy latest.json
+        if: steps.updater_sigs.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -792,7 +719,8 @@ jobs:
           ' latest.json > /dev/null
           jq -r '.platforms | keys[]' latest.json
 
-      - name: 📤 Upload complete legacy latest.json
+      - name: Upload complete legacy latest.json
+        if: steps.updater_sigs.outputs.present == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -886,7 +814,8 @@ jobs:
             exit 1
           fi
 
-      - name: 🔍 Verify complete published updater state
+      - name: Verify complete published updater state
+        if: needs.finalize-legacy-latest.outputs.updater_sigs_present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -897,7 +826,9 @@ jobs:
             --legacy
 
   update-homebrew-cask:
-    name: 🍺 Update Homebrew Cask
+    name: Update Homebrew Cask
+    # Disabled in this fork: no homebrew tap and no main branch to PR against.
+    if: ${{ github.repository == 'jlcodes99/cockpit-tools' }}
     needs:
       - prepare-release
       - publish-release
