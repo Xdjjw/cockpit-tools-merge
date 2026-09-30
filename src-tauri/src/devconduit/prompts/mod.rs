@@ -1,5 +1,6 @@
 pub(crate) mod catalog;
 mod claude;
+pub(crate) mod cl4r1t4s;
 pub(crate) mod claude_commands;
 pub(crate) mod lskill;
 pub(crate) mod pi_commands;

@@ -449,7 +449,16 @@ function PromptsTab() {
           )}
         </div>
         <div className="workshop-card-grid">
-          {(engine === "pi" ? builtins.filter((p) => p.id === "lskill-1.5.9") : builtins).map((p) => {
+          {(engine === "pi"
+            ? builtins.filter((p) => p.id === "lskill-1.5.9")
+            : builtins.filter((p) =>
+                engine === "codex"
+                  ? !p.badge?.includes("Anthropic")
+                  : engine === "claude"
+                    ? !p.badge?.includes("OpenAI")
+                    : true
+              )
+          ).map((p) => {
             const isActive = activeTitle === `builtin:${p.id}`;
             return (
             <div className={`workshop-card ${isActive ? "is-active" : ""}`} key={p.id}>

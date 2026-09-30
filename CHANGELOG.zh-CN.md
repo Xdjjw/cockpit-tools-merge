@@ -8,6 +8,14 @@
 
 ---
 
+## [1.3.66] - 2026-09-30
+
+### 新增
+
+- 离线内置 CL4R1T4S 泄露系统提示词库（github.com/elder-plinius/CL4R1T4S）：共 33 份资产，覆盖 OpenAI 家族（ChatGPT/Codex 系统提示词与工具定义）与 Anthropic 家族（Claude 系统提示词）。工坊提示词页以「OpenAI 泄露 / Anthropic 泄露」徽标分组展示——OpenAI 资产在 Codex 引擎视图、Anthropic 资产在 Claude 引擎视图，均可像内置模板一样一键启用注入。
+
+---
+
 ## [1.3.65] - 2026-09-30
 
 ### 新增

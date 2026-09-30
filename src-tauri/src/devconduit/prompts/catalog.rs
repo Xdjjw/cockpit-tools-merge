@@ -75,8 +75,8 @@ impl PromptContentTrust<'_> {
     }
 }
 
-pub(crate) fn bundled_prompt_metas() -> [BundledPromptMeta; 3] {
-    [
+pub(crate) fn bundled_prompt_metas() -> Vec<BundledPromptMeta> {
+    let mut metas = vec![
         BundledPromptMeta {
             id: CODEX_KEYSMITH_BUILTIN_ID,
             filename: CODEX_KEYSMITH_BUILTIN_FILENAME,
@@ -104,7 +104,28 @@ pub(crate) fn bundled_prompt_metas() -> [BundledPromptMeta; 3] {
             content: ULTIMATE_V3_CONTENT,
             rules_content: Some(ULTIMATE_V3_RULES),
         },
-    ]
+    ];
+    // FORK: CL4R1T4S 泄露系统提示词库 —— OpenAI 家族面向 Codex，Anthropic 家族面向 Claude。
+    for asset in super::cl4r1t4s::cl4r1t4s_assets() {
+        let badge = if asset.family == "OPENAI" {
+            "OpenAI 泄露"
+        } else {
+            "Anthropic 泄露"
+        };
+        metas.push(BundledPromptMeta {
+            id: asset.id,
+            filename: asset.filename,
+            title: asset.title,
+            subtitle: match asset.family {
+                "OPENAI" => "CL4R1T4S 泄露系统提示词（OpenAI/ChatGPT/Codex 系）",
+                _ => "CL4R1T4S 泄露系统提示词（Anthropic/Claude 系）",
+            },
+            badge,
+            content: asset.content,
+            rules_content: None,
+        });
+    }
+    metas
 }
 
 pub(crate) fn bundled_prompt_meta(template_id: &str) -> Option<BundledPromptMeta> {

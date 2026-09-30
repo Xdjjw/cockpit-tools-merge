@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.66] - 2026-09-30
+
+### Added
+
+- Bundled the CL4R1T4S extracted system-prompt library (github.com/elder-plinius/CL4R1T4S) offline: 33 assets across the OpenAI family (ChatGPT/Codex system prompts and tool definitions) and the Anthropic family (Claude system prompts). They appear in the Workshop prompt tab under "OpenAI 泄露 / Anthropic 泄露" badges — OpenAI assets surface on the Codex engine view, Anthropic assets on the Claude view, and each can be injected like any builtin template.
+
+---
+
 ## [1.3.65] - 2026-09-30
 
 ### Added
