@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.64] - 2026-09-30
+
+### Fixed
+
+- Workshop MCP integrations could not be installed: the catalog ids (cheat-engine, x64dbg, burp, ida) did not match the backend registration (cheatengine-mcp, x64dbg-mcp, burp-suite-mcp, ida-pro-mcp), so every install failed with "unknown MCP integration". Ids are now aligned end-to-end (catalog, host detection, installed dedup).
+
+---
+
 ## [1.3.63] - 2026-09-30
 
 ### Removed

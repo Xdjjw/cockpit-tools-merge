@@ -8,6 +8,14 @@
 
 ---
 
+## [1.3.64] - 2026-09-30
+
+### 修复
+
+- 工坊 MCP 集成无法安装：目录 id（cheat-engine、x64dbg、burp、ida）与后端注册（cheatengine-mcp、x64dbg-mcp、burp-suite-mcp、ida-pro-mcp）不一致，安装一律报「未知的 MCP 集成」。现已全链路对齐（目录、主机探测、已装去重）。
+
+---
+
 ## [1.3.63] - 2026-09-30
 
 ### 移除
