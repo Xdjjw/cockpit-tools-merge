@@ -130,18 +130,18 @@ jobs:
               --jq "[.[] | select(.isDraft == false and .isPrerelease == false and .tagName != \"${GITHUB_REF_NAME}\")][0].tagName // \"\""
           )"
           if [ -z "${PREVIOUS_TAG}" ]; then
-            echo "No previous published release was found; refusing to stage without a legacy updater manifest."
-            exit 1
+            echo "No previous published release; staging without a legacy updater manifest (first release)."
+            : > legacy-latest.json
+          else
+            mkdir -p previous-release
+            gh release download "${PREVIOUS_TAG}" \
+              --pattern "latest.json" \
+              --dir previous-release \
+              --clobber
+            test -s previous-release/latest.json
+            cp previous-release/latest.json legacy-latest.json
+            echo "Preserved legacy latest.json from ${PREVIOUS_TAG}"
           fi
-
-          mkdir -p previous-release
-          gh release download "${PREVIOUS_TAG}" \
-            --pattern "latest.json" \
-            --dir previous-release \
-            --clobber
-          test -s previous-release/latest.json
-          cp previous-release/latest.json legacy-latest.json
-          echo "Preserved legacy latest.json from ${PREVIOUS_TAG}"
 
       # Publish the release early (with previous complete latest.json) so parallel
       # platform jobs can verify assets via public tag download URLs without
@@ -168,8 +168,10 @@ jobs:
 
           IS_DRAFT="$(gh release view "${TAG}" --json isDraft --jq '.isDraft')"
           if [ "${IS_DRAFT}" = "true" ]; then
-            cp legacy-latest.json latest.json
-            gh release upload "${TAG}" latest.json --clobber
+            if [ -s legacy-latest.json ]; then
+              cp legacy-latest.json latest.json
+              gh release upload "${TAG}" latest.json --clobber
+            fi
             gh release edit "${TAG}" --draft=false --prerelease=false --latest
             echo "Published staged release ${TAG} with legacy latest.json"
           else
@@ -249,7 +251,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          npx tauri build --ci
+          npx tauri build --ci --config src-tauri/tauri.ci.conf.json
 
       - name: 📥 Download release metadata
         uses: actions/download-artifact@v4
@@ -279,7 +281,6 @@ jobs:
           gh release upload "${TAG}" "${ASSETS[@]}" --clobber
           echo "Uploaded ${#ASSETS[@]} Windows assets"
 
-      - name: 📤 Build and upload Windows updater manifests
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -305,8 +306,10 @@ jobs:
           TAG="v${VERSION}"
           IS_DRAFT="$(gh release view "${TAG}" --json isDraft --jq '.isDraft')"
           if [ "${IS_DRAFT}" = "true" ]; then
-            cp release-metadata/legacy-latest.json latest.json
-            gh release upload "${TAG}" latest.json --clobber
+            if [ -s release-metadata/legacy-latest.json ]; then
+              cp release-metadata/legacy-latest.json latest.json
+              gh release upload "${TAG}" latest.json --clobber
+            fi
             gh release edit "${TAG}" --draft=false --prerelease=false --latest
             echo "Published staged release from Windows fallback with legacy latest.json"
           else
@@ -316,7 +319,6 @@ jobs:
       # Mid-stage verify uses the tag download URL so parallel jobs do not race
       # on /releases/latest/ before this release is marked latest (or before
       # other platforms finish). Public /latest/ is checked in finalize.
-      - name: 🔍 Verify published Windows updater manifests
         shell: bash
         run: |
           set -euo pipefail
@@ -390,7 +392,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          npx tauri build --ci --target aarch64-apple-darwin
+          npx tauri build --ci --config src-tauri/tauri.ci.conf.json --target aarch64-apple-darwin
 
       - name: 📝 Rebuild DMG with the Gatekeeper troubleshooting note
         shell: bash
@@ -428,7 +430,6 @@ jobs:
           gh release upload "${TAG}" "${ASSETS[@]}" --clobber
           echo "Uploaded ${#ASSETS[@]} macOS Apple Silicon assets"
 
-      - name: 📤 Build and upload macOS Apple Silicon updater manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -445,7 +446,6 @@ jobs:
           gh release upload "v${VERSION}" target-manifests/*.json --clobber
 
       # Tag URL (not /releases/latest/) — see Windows verify comment.
-      - name: 🔍 Verify published macOS Apple Silicon updater manifest
         shell: bash
         run: |
           set -euo pipefail
@@ -519,7 +519,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          npx tauri build --ci --target x86_64-apple-darwin
+          npx tauri build --ci --config src-tauri/tauri.ci.conf.json --target x86_64-apple-darwin
 
       - name: 📝 Rebuild DMG with the Gatekeeper troubleshooting note
         shell: bash
@@ -557,7 +557,6 @@ jobs:
           gh release upload "${TAG}" "${ASSETS[@]}" --clobber
           echo "Uploaded ${#ASSETS[@]} macOS Intel assets"
 
-      - name: 📤 Build and upload macOS Intel updater manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -574,7 +573,6 @@ jobs:
           gh release upload "v${VERSION}" target-manifests/*.json --clobber
 
       # Tag URL (not /releases/latest/) — see Windows verify comment.
-      - name: 🔍 Verify published macOS Intel updater manifest
         shell: bash
         run: |
           set -euo pipefail
@@ -649,7 +647,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          npx tauri build --ci --target universal-apple-darwin
+          npx tauri build --ci --config src-tauri/tauri.ci.conf.json --target universal-apple-darwin
 
       - name: 📝 Rebuild DMG with the Gatekeeper troubleshooting note
         shell: bash
@@ -759,7 +757,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          npx tauri build --ci
+          npx tauri build --ci --config src-tauri/tauri.ci.conf.json
 
       - name: 📥 Download release metadata
         uses: actions/download-artifact@v4
@@ -789,7 +787,6 @@ jobs:
           gh release upload "${TAG}" "${ASSETS[@]}" --clobber
           echo "Uploaded ${#ASSETS[@]} Linux assets"
 
-      - name: 📤 Build and upload Linux updater manifests
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -806,7 +803,6 @@ jobs:
           gh release upload "v${VERSION}" target-manifests/*.json --clobber
 
       # Tag URL (not /releases/latest/) — see Windows verify comment.
-      - name: 🔍 Verify published Linux updater manifests
         shell: bash
         run: |
           set -euo pipefail
@@ -869,7 +865,20 @@ jobs:
             exit 1
           fi
 
-      - name: 🏗️ Build complete legacy latest.json
+      - name: 🧭 Detect updater signature artifacts
+        id: updater_sigs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if compgen -G "release-assets/*.sig" > /dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No .sig artifacts (unsigned CI build); skipping legacy latest.json."
+          fi
+
+      - name: Build complete legacy latest.json
+        if: steps.updater_sigs.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -881,7 +890,8 @@ jobs:
             --published-at "$(cat release-metadata/published-at.txt)" \
             --output "latest.json"
 
-      - name: 🔍 Validate complete legacy latest.json
+      - name: Validate complete legacy latest.json
+        if: steps.updater_sigs.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -899,17 +909,20 @@ jobs:
           ' latest.json > /dev/null
           jq -r '.platforms | keys[]' latest.json
 
-      - name: 📤 Publish complete legacy latest.json
+      - name: Finalize release publish state
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          gh release upload "v${VERSION}" latest.json --clobber
+          if [ -s latest.json ]; then
+            gh release upload "v${VERSION}" latest.json --clobber
+          fi
           gh release edit "v${VERSION}" --draft=false --prerelease=false --latest
 
       # End-to-end: user-facing /releases/latest/download (do not use tag URL here).
-      - name: 🔍 Verify complete published updater state
+      - name: Verify complete published updater state
+        if: steps.updater_sigs.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -966,7 +979,9 @@ jobs:
           gh release upload "v${VERSION}" SHA256SUMS.txt --clobber
 
   update-homebrew-cask:
-    name: 🍺 Update Homebrew Cask
+    name: Update Homebrew Cask
+    # Disabled in this fork: no homebrew tap and no main branch to PR against.
+    if: false
     needs:
       - prepare-release
       - finalize-legacy-latest
