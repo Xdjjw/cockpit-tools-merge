@@ -37,25 +37,25 @@ type InjectMode = "replace" | "append";
 // MCP 自动接入目录（与 everything-patch 内置集成一致）
 const MCP_DIRECTORY = [
   {
-    id: "cheat-engine",
+    id: "cheatengine-mcp",
     name: "Cheat Engine",
     description: "CE 内存分析 MCP：ce_mcp_bridge + mcp_cheatengine.py（Windows）",
     category: "逆向",
   },
   {
-    id: "x64dbg",
+    id: "x64dbg-mcp",
     name: "x64dbg",
     description: "调试器 MCP：x64dbg.py + MCPx64dbg 插件（Windows）",
     category: "逆向",
   },
   {
-    id: "burp",
+    id: "burp-suite-mcp",
     name: "Burp Suite",
     description: "Web 安全 MCP：burp-mcp-all 扩展 + stdio 代理（Codex/Claude）",
     category: "Web 安全",
   },
   {
-    id: "ida",
+    id: "ida-pro-mcp",
     name: "IDA Pro",
     description: "IDA 静态分析 MCP：idalib-mcp（需要 uv）",
     category: "逆向",
