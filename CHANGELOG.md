@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.65] - 2026-09-30
+
+### Added
+
+- Global MCP management: installing an integration now deploys it to every engine (Codex, Claude Code, Pi, ...) in one click, and delete/toggle act across all engines too. The per-engine switch sets are gone — the mounted list is aggregated, showing which engines have each server.
+
+---
+
 ## [1.3.64] - 2026-09-30
 
 ### Fixed
