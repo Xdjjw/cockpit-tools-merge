@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.69] - 2026-10-01
+
+### Added
+
+- Absorbed the hanshuang-codex breaker toolkit: 7 hanShuang prompt variants (v5 ENI router, v4 Codex/Claude, v3, flash-v2, variant-B EN, zcode) bundled as workshop templates with 寒霜破甲 badges, plus a one-click 寒霜技能包 installer that unpacks the 107-skill breaker-kit (RULES, scripts, burp-mcp-full) into the engine skills directory.
+
+---
+
 ## [1.3.68] - 2026-10-01
 
 ### Added
