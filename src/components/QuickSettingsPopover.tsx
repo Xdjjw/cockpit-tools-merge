@@ -1876,7 +1876,7 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
                     <span>
                       {t(
                         'settings.general.codexLocalAccessEntryVisible',
-                        '显示 API 服务入口',
+                        '显示破甲引擎入口',
                       )}
                     </span>
                   </div>
@@ -1896,7 +1896,7 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
                 <div className="qs-hint">
                   {t(
                     'settings.general.codexLocalAccessEntryVisibleDesc',
-                    '仅控制 Codex 总览中的 API 服务入口显示，不会停止本地 API 服务；关闭后可在这里重新打开。',
+                    '仅控制 Codex 总览中的破甲引擎入口显示，不影响独立 sidecar 的启停。',
                   )}
                 </div>
                 <div className="qs-row" style={{ marginTop: 8 }}>

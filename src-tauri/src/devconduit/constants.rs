@@ -50,6 +50,37 @@ pub(crate) const HANSHUANG_FLASH_V2_ID: &str = "hanshuang-flash-v2";
 pub(crate) const HANSHUANG_VARIANT_B_EN_ID: &str = "hanshuang-variant-b-en";
 pub(crate) const HANSHUANG_ZCODE_ID: &str = "hanshuang-zcode";
 
+// FORK: coldcoffee（github.com/3641397194-wq/gpt6-Astra）冷咖啡座位模板，占位符已预渲染。
+pub(crate) const COLDCOFFEE_SEATS: [(&str, &str, &str); 10] = [
+    ("coldcoffee-codex", "coldcoffee-codex.md", "冷咖啡座位 · codex"),
+    ("coldcoffee-claude", "coldcoffee-claude.md", "冷咖啡座位 · claude"),
+    ("coldcoffee-grok", "coldcoffee-grok.md", "冷咖啡座位 · grok"),
+    ("coldcoffee-deepseek", "coldcoffee-deepseek.md", "冷咖啡座位 · deepseek"),
+    ("coldcoffee-glm53", "coldcoffee-glm53.md", "冷咖啡座位 · glm53"),
+    ("coldcoffee-gemini", "coldcoffee-gemini.md", "冷咖啡座位 · gemini"),
+    ("coldcoffee-cursor", "coldcoffee-cursor.md", "冷咖啡座位 · cursor"),
+    ("coldcoffee-workbuddy", "coldcoffee-workbuddy.md", "冷咖啡座位 · workbuddy"),
+    ("coldcoffee-doubao", "coldcoffee-doubao.md", "冷咖啡座位 · doubao"),
+    ("coldcoffee-mimo", "coldcoffee-mimo.md", "冷咖啡座位 · mimo"),
+];
+pub(crate) fn coldcoffee_seat_content(filename: &str) -> &'static str {
+    match filename {
+        "coldcoffee-codex.md" => include_str!("../../resources/devconduit-prompts/coldcoffee-codex.md"),
+        "coldcoffee-claude.md" => include_str!("../../resources/devconduit-prompts/coldcoffee-claude.md"),
+        "coldcoffee-grok.md" => include_str!("../../resources/devconduit-prompts/coldcoffee-grok.md"),
+        "coldcoffee-deepseek.md" => include_str!("../../resources/devconduit-prompts/coldcoffee-deepseek.md"),
+        "coldcoffee-glm53.md" => include_str!("../../resources/devconduit-prompts/coldcoffee-glm53.md"),
+        "coldcoffee-gemini.md" => include_str!("../../resources/devconduit-prompts/coldcoffee-gemini.md"),
+        "coldcoffee-cursor.md" => include_str!("../../resources/devconduit-prompts/coldcoffee-cursor.md"),
+        "coldcoffee-workbuddy.md" => include_str!("../../resources/devconduit-prompts/coldcoffee-workbuddy.md"),
+        "coldcoffee-doubao.md" => include_str!("../../resources/devconduit-prompts/coldcoffee-doubao.md"),
+        _ => include_str!("../../resources/devconduit-prompts/coldcoffee-mimo.md"),
+    }
+}
+/// 冷咖啡路由 kit（ROUTER + NORMALIZER + 6 父工作流 + 81 叶子 + unified）。
+pub(crate) const COLDCOFFEE_ROUTER_KIT_ZIP_BYTES: &[u8] =
+    include_bytes!("../../resources/coldcoffee-router-kit.zip");
+
 pub(crate) const LSKILL_159_ID: &str = "lskill-1.5.9";
 pub(crate) const LSKILL_159_FILENAME: &str = "lskill-1.5.9.md";
 pub(crate) const LSKILL_159_CONTENT: &str =

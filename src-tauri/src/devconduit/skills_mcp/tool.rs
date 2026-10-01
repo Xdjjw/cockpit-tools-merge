@@ -1618,6 +1618,15 @@ fn report_result(tool: ToolId, outcome: Result<String>) -> McpAllEngineReport {
     }
 }
 
+fn mcp_is_installed_for_tool(tool: ToolId, config_dir: Option<String>, id: &str) -> bool {
+    list_tool_mcp(tool, config_dir.clone())
+        .map(|servers| servers.iter().any(|server| server.id == id))
+        .unwrap_or(false)
+        || mcp_targets(tool)
+            .map(|targets| targets.contains_key(id))
+            .unwrap_or(false)
+}
+
 /// 把同一份 MCP 集成安装到全部引擎；单引擎失败不影响其它引擎。
 pub(crate) fn install_mcp_integration_all_inner(
     config_dir: Option<String>,
@@ -1643,9 +1652,7 @@ pub(crate) fn uninstall_mcp_all_inner(
 ) -> Result<Vec<McpAllEngineReport>> {
     let mut reports = Vec::new();
     for tool in ToolId::ALL {
-        let installed = list_tool_mcp(tool, config_dir.clone())
-            .map(|servers| servers.iter().any(|server| server.id == id))
-            .unwrap_or(false);
+        let installed = mcp_is_installed_for_tool(tool, config_dir.clone(), id);
         if !installed {
             reports.push(report_skip(tool, "未安装，已跳过"));
             continue;
@@ -1666,9 +1673,7 @@ pub(crate) fn toggle_mcp_all_inner(
 ) -> Result<Vec<McpAllEngineReport>> {
     let mut reports = Vec::new();
     for tool in ToolId::ALL {
-        let installed = list_tool_mcp(tool, config_dir.clone())
-            .map(|servers| servers.iter().any(|server| server.id == id))
-            .unwrap_or(false);
+        let installed = mcp_is_installed_for_tool(tool, config_dir.clone(), id);
         if !installed {
             reports.push(report_skip(tool, "未安装，已跳过"));
             continue;

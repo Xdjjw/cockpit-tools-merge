@@ -50,6 +50,32 @@ fn api_service_manifest_carries_internal_key_and_scope() {
 }
 
 #[test]
+fn standalone_engine_collection_uses_internal_token() {
+    let collection = super::bare_engine_collection(
+        17654,
+        vec![INTERNAL_SERVICE_TEST_ACCOUNT_ID.to_string()],
+    )
+    .expect("standalone engine collection");
+    assert!(collection.enabled);
+    assert_eq!(collection.api_key, super::internal_api_service_key());
+    assert_eq!(collection.account_ids, vec![INTERNAL_SERVICE_TEST_ACCOUNT_ID]);
+}
+
+#[test]
+fn standalone_engine_account_ids_are_trimmed_and_deduplicated() {
+    assert_eq!(
+        super::normalize_engine_account_ids(vec![
+            " account-a ".to_string(),
+            "account-a".to_string(),
+            "".to_string(),
+            "  ".to_string(),
+            "account-b".to_string(),
+        ]),
+        vec!["account-a", "account-b"],
+    );
+}
+
+#[test]
 fn internal_accounts_join_the_api_service_account_scope() {
     super::register_internal_api_account(INTERNAL_SERVICE_TEST_ACCOUNT_ID)
         .expect("register internal API account");

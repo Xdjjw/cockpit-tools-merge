@@ -133,23 +133,33 @@ pub(crate) async fn dc_check_skill_updates(
         .map_err(|e| CodexxError::Config(format!("检查 Skill 更新失败: {e}")))?
 }
 
-/// FORK: 安装内置的寒霜 breaker-kit 技能包（107 技能 + RULES + 脚本）。
+/// FORK: 安装内置技能包（breaker-kit / coldcoffee-router-kit）。
 #[tauri::command]
-pub(crate) async fn dc_install_breaker_kit(
+pub(crate) async fn dc_install_skill_kit(
     tool: ToolId,
+    kit: String,
     config_dir: Option<String>,
 ) -> Result<SkillsMcpActionResult> {
-    const KIT_ZIP: &[u8] = crate::devconduit::constants::HANSHUANG_BREAKER_KIT_ZIP_BYTES;
+    let (name, bytes): (&str, &[u8]) = match kit.trim() {
+        "coldcoffee-router-kit" => (
+            "coldcoffee-router-kit.zip",
+            crate::devconduit::constants::COLDCOFFEE_ROUTER_KIT_ZIP_BYTES,
+        ),
+        _ => (
+            "hanshuang-breaker-kit.zip",
+            crate::devconduit::constants::HANSHUANG_BREAKER_KIT_ZIP_BYTES,
+        ),
+    };
     tauri::async_runtime::spawn_blocking(move || {
         crate::devconduit::skills_mcp::tool::install_tool_skill_zip_inner(
             tool,
             config_dir,
-            "hanshuang-breaker-kit.zip".to_string(),
-            KIT_ZIP.to_vec(),
+            name.to_string(),
+            bytes.to_vec(),
         )
     })
     .await
-    .map_err(|e| CodexxError::Config(format!("安装寒霜技能包失败: {e}")))?
+    .map_err(|e| CodexxError::Config(format!("安装技能包失败: {e}")))?
 }
 
 #[tauri::command]

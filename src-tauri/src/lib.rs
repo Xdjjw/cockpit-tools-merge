@@ -1231,7 +1231,7 @@ pub fn run() {
             devconduit::skills_commands::dc_uninstall_skill,
             devconduit::skills_commands::dc_uninstall_mcp,
             devconduit::skills_commands::dc_check_skill_updates,
-            devconduit::skills_commands::dc_install_breaker_kit,
+            devconduit::skills_commands::dc_install_skill_kit,
             devconduit::skills_commands::dc_install_mcp_integration,
             devconduit::skills_commands::dc_install_mcp_integration_all,
             devconduit::skills_commands::dc_uninstall_mcp_all,

@@ -202,6 +202,18 @@ pub(crate) fn bundled_prompt_metas() -> Vec<BundledPromptMeta> {
             rules_content: None,
         });
     }
+    // FORK: coldcoffee 座位模板（占位符已预渲染，中转/社群推广已剔除）。
+    for (id, filename, title) in crate::devconduit::constants::COLDCOFFEE_SEATS {
+        metas.push(BundledPromptMeta {
+            id,
+            filename,
+            title,
+            subtitle: "CHA 座位模板：口令激活 + 路由台 + 五条刃口，占位符已渲染",
+            badge: "冷咖啡路由",
+            content: crate::devconduit::constants::coldcoffee_seat_content(filename),
+            rules_content: None,
+        });
+    }
     metas
 }
 

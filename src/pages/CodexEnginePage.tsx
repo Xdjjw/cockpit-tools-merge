@@ -198,7 +198,7 @@ export function CodexEnginePage() {
               })
             )}
           </div>
-          <p className="codex-engine-hint">{t("codex.engine.upstreamHint", "账号选择只影响独立引擎，不会修改原有账号资料或 API 服务配置。")}</p>
+          <p className="codex-engine-hint">{t("codex.engine.upstreamHint", "账号选择只影响独立引擎，不会修改原有账号资料或兼容配置。")}</p>
         </div>
       </section>
 

@@ -11,3 +11,4 @@ set "COCKPIT_SKIP_CLIPROXY_BUILD=1"
 cd /d "%~dp0.."
 cargo check -j 2
 echo CHECKEXIT=%ERRORLEVEL%
+exit /b %ERRORLEVEL%

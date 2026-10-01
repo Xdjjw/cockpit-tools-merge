@@ -1483,6 +1483,9 @@ pub async fn set_engine_standalone_enabled(
 pub async fn set_engine_standalone_accounts(
     account_ids: Vec<String>,
 ) -> Result<CodexLocalAccessState, String> {
+    if engine_standalone_enabled() && normalize_engine_account_ids(account_ids.clone()).is_empty() {
+        return Err("破甲引擎至少需要一个上游账号".to_string());
+    }
     persist_engine_standalone_accounts(account_ids)?;
     if engine_standalone_enabled() {
         ensure_gateway_matches_runtime().await?;

@@ -33,6 +33,7 @@ import "./WorkshopPage.css";
 
 type Tab = "prompts" | "mcp" | "skills";
 type Engine = "codex" | "claude" | "pi";
+type McpEngine = "codex" | "claude" | "grok" | "zcode" | "kilo" | "pi";
 type InjectMode = "replace" | "append";
 
 // MCP 自动接入目录（与 everything-patch 内置集成一致）
@@ -605,12 +606,15 @@ function PromptsTab() {
 function McpTab() {
   // FORK: MCP 全局化 —— 不再按引擎各管一套。安装/启停/删除一次性作用于全部引擎，
   // 列表为跨引擎聚合视图（同一 server 只出现一行，标注已装引擎）。
-  const ENGINE_TOOLS: Array<{ id: Engine; label: string }> = [
+  const ENGINE_TOOLS: Array<{ id: McpEngine; label: string }> = [
     { id: "codex", label: "Codex" },
     { id: "claude", label: "Claude Code" },
+    { id: "grok", label: "Grok Build" },
+    { id: "zcode", label: "ZCode" },
+    { id: "kilo", label: "Kilo Code" },
     { id: "pi", label: "Pi" },
   ];
-  const [statesByTool, setStatesByTool] = useState<Partial<Record<Engine, SkillsMcpState>>>({});
+  const [statesByTool, setStatesByTool] = useState<Partial<Record<McpEngine, SkillsMcpState>>>({});
   const [hosts, setHosts] = useState<McpHostDiscovery[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -620,13 +624,16 @@ function McpTab() {
     setBusy(true);
     setError(null);
     try {
-      const [codex, claude, pi, h] = await Promise.all([
+      const [codex, claude, grok, zcode, kilo, pi, h] = await Promise.all([
         workshop.getSkillsMcpState("codex"),
         workshop.getSkillsMcpState("claude"),
+        workshop.getSkillsMcpState("grok"),
+        workshop.getSkillsMcpState("zcode"),
+        workshop.getSkillsMcpState("kilo"),
         workshop.getSkillsMcpState("pi"),
         workshop.discoverMcpHosts(),
       ]);
-      setStatesByTool({ codex, claude, pi });
+      setStatesByTool({ codex, claude, grok, zcode, kilo, pi });
       setHosts(h);
     } catch (e) {
       setError(String(e));
