@@ -26,6 +26,7 @@ use crate::models::codex_local_access::{
     CodexLocalAccessUsageTrendPoint, CodexTokenBreakdown, DEFAULT_CODEX_IMAGE_GENERATION_MODEL,
 };
 use crate::models::{CodexInstanceApiRoute, CodexInstanceModelRouting};
+use crate::devconduit::file_io::read_to_string_if_exists;
 use crate::modules::atomic_write::{
     write_secret_string_atomic, write_secret_string_atomic_if_changed, write_string_atomic,
     write_string_atomic_if_hash_matches,
@@ -119,7 +120,65 @@ fn internal_api_service_required() -> bool {
 /// 用户停用 API 服务只关闭对外入口，唤醒与鹈鹕测试等内部请求依然复用同一进程，
 /// 因此生命周期判断必须同时考虑这两个条件。
 fn local_access_gateway_should_run(collection: &CodexLocalAccessCollection) -> bool {
-    collection.enabled || internal_api_service_required()
+    collection.enabled || internal_api_service_required() || engine_standalone_enabled()
+}
+
+/// FORK: 引擎独立开关的持久化文件。与 API 服务集合（codex_local_access.json）
+/// 分离：开关打开时 sidecar 以裸配置常驻，无需创建/启用任何 API 服务集合。
+const CODEX_LOCAL_ACCESS_ENGINE_FILE: &str = "codex_local_access_engine.json";
+
+static ENGINE_STANDALONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static ENGINE_STANDALONE_LOADED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EngineStandaloneConfig {
+    enabled: bool,
+    port: u16,
+}
+
+fn engine_standalone_file_path() -> Result<PathBuf, String> {
+    Ok(account::get_data_dir()?.join(CODEX_LOCAL_ACCESS_ENGINE_FILE))
+}
+
+fn engine_standalone_config() -> Option<EngineStandaloneConfig> {
+    let path = engine_standalone_file_path().ok()?;
+    let content = read_to_string_if_exists(&path).ok()?;
+    if content.trim().is_empty() {
+        return None;
+    }
+    serde_json::from_str(&content).ok()
+}
+
+pub(crate) fn engine_standalone_enabled() -> bool {
+    let _ = ENGINE_STANDALONE_LOADED.get_or_init(|| {
+        let enabled = engine_standalone_config().map(|c| c.enabled).unwrap_or(false);
+        ENGINE_STANDALONE.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    });
+    ENGINE_STANDALONE.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+pub(crate) fn engine_standalone_port() -> Option<u16> {
+    let _ = ENGINE_STANDALONE_LOADED.get_or_init(|| {
+        let enabled = engine_standalone_config().map(|c| c.enabled).unwrap_or(false);
+        ENGINE_STANDALONE.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    });
+    engine_standalone_config().map(|c| c.port)
+}
+
+pub(crate) fn set_engine_standalone(enabled: bool) -> Result<(), String> {
+    let port = match engine_standalone_config() {
+        Some(config) if config.port != 0 => config.port,
+        _ => allocate_random_local_port(CODEX_LOCAL_ACCESS_LOCALHOST_BIND_HOST)?,
+    };
+    let config = EngineStandaloneConfig { enabled, port };
+    let path = engine_standalone_file_path()?;
+    let content = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("序列化引擎配置失败: {e}"))?;
+    crate::modules::atomic_write::write_string_atomic(&path, &content)
+        .map_err(|e| format!("写入引擎配置失败: {e}"))?;
+    ENGINE_STANDALONE.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
 }
 
 /// All host-triggered Codex requests share this scheduler. The account permit

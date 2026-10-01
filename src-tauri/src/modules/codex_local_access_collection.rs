@@ -21,7 +21,7 @@ fn request_ordered_account_ids(
     prioritize_account_ids(ordered, priority_account_ids)
 }
 
-fn allocate_random_local_port(bind_host: &str) -> Result<u16, String> {
+pub(crate) fn allocate_random_local_port(bind_host: &str) -> Result<u16, String> {
     let listener =
         StdTcpListener::bind((bind_host, 0)).map_err(|e| format!("分配本地接入端口失败: {}", e))?;
     listener

@@ -23,15 +23,25 @@ async fn ensure_gateway_matches_runtime_once_locked() -> Result<(), String> {
         let _ = task.await;
     }
 
-    let Some(collection) = collection else {
-        stop_gateway_locked().await;
-        return Ok(());
+    // FORK: 引擎独立开关 —— 未创建 API 服务集合时，开关打开则以裸配置常驻。
+    let collection = match collection {
+        Some(collection) => collection,
+        None if engine_standalone_enabled() => {
+            let port = engine_standalone_port()
+                .unwrap_or_else(|| allocate_random_local_port("127.0.0.1").unwrap_or(0));
+            bare_engine_collection(port)?
+        }
+        None => {
+            stop_gateway_locked().await;
+            return Ok(());
+        }
     };
 
     if !local_access_gateway_should_run(&collection) {
         stop_gateway_locked().await;
         return Ok(());
     }
+    // 引擎独立开关打开时不再因 collection.enabled=false 走到上面的 stop。
 
     let bind_host = bind_host_for_collection(&collection);
 
@@ -1095,6 +1105,21 @@ fn stats_model_id_from_response_capture(
         .to_string()
 }
 
+/// FORK: 引擎独立模式使用的最小 API 服务集合配置（空账号表，其余字段走 serde 默认值）。
+/// 运行期间保持 runtime.collection = None，不污染 API 服务的真实状态。
+fn bare_engine_collection(port: u16) -> Result<CodexLocalAccessCollection, String> {
+    let value = serde_json::json!({
+        "enabled": true,
+        "port": port,
+        "apiKey": "",
+        "accountIds": [],
+        "createdAt": 0,
+        "updatedAt": 0,
+    });
+    serde_json::from_value(value)
+        .map_err(|error| format!("构造引擎独立配置失败: {error}"))
+}
+
 fn build_state_snapshot_inner(
     runtime: &GatewayRuntime,
     include_default_profile: bool,
@@ -1179,6 +1204,7 @@ fn build_state_snapshot_inner(
         account_pool_health,
         recovery_suppressed_account_ids,
         quota_reserve_status,
+        engine_standalone_enabled: engine_standalone_enabled(),
     }
 }
 

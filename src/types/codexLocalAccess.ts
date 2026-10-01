@@ -435,6 +435,8 @@ export interface CodexLocalAccessState {
   /** 手动恢复后仍在抑制窗口内的账号：异常列表里临时隐藏这些账号的行。 */
   recoverySuppressedAccountIds?: string[];
   quotaReserveStatus: CodexLocalAccessQuotaReserveStatus | null;
+  /** FORK: 破甲引擎独立开关 —— 打开后 sidecar 不依赖 API 服务集合常驻运行。 */
+  engineStandaloneEnabled?: boolean;
 }
 
 export interface CodexLocalAccessAppendAccountSkipped {

@@ -1162,6 +1162,7 @@ pub fn run() {
             commands::codex::codex_account_proxy_recent_requests,
             commands::codex::codex_local_access_prepare_restart,
             commands::codex::codex_local_access_restart_sidecar,
+            commands::codex::codex_local_access_engine_set_enabled,
             commands::codex::codex_local_access_kill_port,
             commands::codex::codex_local_access_update_port,
             commands::codex::codex_local_access_update_routing_strategy,

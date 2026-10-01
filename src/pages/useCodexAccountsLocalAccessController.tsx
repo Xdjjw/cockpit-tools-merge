@@ -1705,6 +1705,8 @@ export function useCodexAccountsLocalAccessController(context: Pick<ReturnType<t
         setLocalAccessSidecarRestarting(false);
       }
     }, [setMessage, t]);
+
+
   
     const handleUpdateLocalAccessPort = useCallback(
       async (port: number) => {

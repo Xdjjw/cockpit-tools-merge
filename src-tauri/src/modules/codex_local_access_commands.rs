@@ -1451,6 +1451,19 @@ pub async fn prepare_local_access_gateway_for_restart() -> Result<CodexLocalAcce
 
 /// 仅重启当前 API 服务 Sidecar，保留账号集合、API Key 和持久化配置。
 /// Sidecar 进程内的连接、会话和调度临时状态会随进程退出而清理。
+/// FORK: 设置破甲引擎独立开关；开=以裸配置常驻 sidecar，关=仅当 API 服务需要时才运行。
+pub async fn set_engine_standalone_enabled(
+    enabled: bool,
+) -> Result<CodexLocalAccessState, String> {
+    set_engine_standalone(enabled)?;
+    if enabled {
+        ensure_gateway_matches_runtime().await?;
+    } else {
+        stop_gateway().await;
+    }
+    snapshot_state().await
+}
+
 pub async fn restart_local_access_sidecar() -> Result<CodexLocalAccessState, String> {
     ensure_runtime_loaded_without_start().await?;
 

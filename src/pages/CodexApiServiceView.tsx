@@ -176,6 +176,8 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
     proxyInput,
     quotaPoolSummary,
     reloadState,
+    engineStandaloneToggling,
+    handleToggleEngineStandalone,
     removeAccountModelMappingRow,
     REQUEST_LOG_PAGE_SIZE_OPTIONS,
     requestKindLabel,
@@ -346,9 +348,15 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
                     </span>
                   )}
                   <span
-                    className={`codex-api-service-status ${state?.running ? "running" : collection?.enabled ? "stopped" : "disabled"}`}
+                    className={`codex-api-service-status ${state?.running ? "running" : collection?.enabled || state?.engineStandaloneEnabled ? "stopped" : "disabled"}`}
                   >
-                    {collection?.enabled
+                    {state?.engineStandaloneEnabled
+                      ? state?.preparing
+                        ? t("instances.status.starting", "启动中")
+                        : state?.running
+                        ? t("codex.localAccess.statusEngineRunning", "独立运行中")
+                        : t("codex.localAccess.statusStopped", "未运行")
+                      : collection?.enabled
                       ? state?.preparing
                         ? t("instances.status.starting", "启动中")
                         : state?.running
@@ -384,6 +392,21 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
             >
               <RefreshCw size={14} />
               {t("codex.localAccess.refreshStats", "刷新统计")}
+            </button>
+            <button
+              type="button"
+              className={`btn ${state?.engineStandaloneEnabled ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => void handleToggleEngineStandalone()}
+              disabled={engineStandaloneToggling}
+              title={t(
+                "codex.localAccess.engineToggleTitle",
+                "破甲引擎独立开关：打开后引擎常驻运行，无需配置 API 服务",
+              )}
+            >
+              <Power size={14} />
+              {state?.engineStandaloneEnabled
+                ? t("codex.localAccess.engineOn", "引擎独立运行中")
+                : t("codex.localAccess.engineOff", "引擎独立开关")}
             </button>
             <button
               type="button"

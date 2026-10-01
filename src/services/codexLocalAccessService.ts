@@ -153,6 +153,13 @@ export async function restartCodexLocalAccessSidecar(): Promise<CodexLocalAccess
   return await invoke("codex_local_access_restart_sidecar");
 }
 
+// FORK: 破甲引擎独立开关 —— 不依赖 API 服务集合。
+export async function setCodexEngineStandaloneEnabled(
+  enabled: boolean,
+): Promise<CodexLocalAccessState> {
+  return await invoke("codex_local_access_engine_set_enabled", { enabled });
+}
+
 export async function killCodexLocalAccessPort(): Promise<CodexLocalAccessPortCleanupResult> {
   return await invoke("codex_local_access_kill_port");
 }

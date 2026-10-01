@@ -163,6 +163,14 @@ pub async fn codex_local_access_restart_sidecar() -> Result<CodexLocalAccessStat
     codex_local_access::restart_local_access_sidecar().await
 }
 
+/// FORK: 破甲引擎（sidecar）独立开关 —— 不依赖 API 服务集合，打开即常驻运行。
+#[tauri::command]
+pub async fn codex_local_access_engine_set_enabled(
+    enabled: bool,
+) -> Result<CodexLocalAccessState, String> {
+    codex_local_access::set_engine_standalone_enabled(enabled).await
+}
+
 #[tauri::command]
 pub async fn codex_local_access_kill_port() -> Result<CodexLocalAccessPortCleanupResult, String> {
     codex_local_access::kill_local_access_port_processes().await

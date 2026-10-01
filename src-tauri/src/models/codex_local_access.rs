@@ -974,6 +974,9 @@ pub struct CodexLocalAccessState {
     #[serde(default)]
     pub recovery_suppressed_account_ids: Vec<String>,
     pub quota_reserve_status: Option<CodexLocalAccessQuotaReserveStatus>,
+    /// FORK: 引擎独立开关 —— 打开后 sidecar 不依赖 API 服务集合常驻运行。
+    #[serde(default)]
+    pub engine_standalone_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
