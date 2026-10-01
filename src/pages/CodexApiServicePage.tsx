@@ -1964,14 +1964,16 @@ export function useCodexApiServicePageController() {
 
   // FORK: 破甲引擎独立开关 —— 不依赖 API 服务集合，直接常驻/停止 sidecar。
   const [engineStandaloneToggling, setEngineStandaloneToggling] = useState(false);
-  const handleToggleEngineStandalone = async () => {
+  const handleToggleEngineStandalone = async (accountIds?: string[]) => {
     const enabled = !(state?.engineStandaloneEnabled ?? false);
     setEngineStandaloneToggling(true);
     setError("");
     setNotice("");
     try {
-      const next =
-        await codexLocalAccessService.setCodexEngineStandaloneEnabled(enabled);
+      const next = await codexLocalAccessService.setCodexEngineStandaloneEnabled(
+        enabled,
+        accountIds,
+      );
       setState(next);
       setNotice(
         enabled

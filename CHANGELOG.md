@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.68] - 2026-10-01
+
+### Added
+
+- The standalone engine switch now supports picking an upstream account: any account in the library (a relay/API-key account or an OAuth account) can be selected as the engine's upstream via a dropdown next to the switch; changing it hot-restarts the engine with that account. "None" keeps the engine idling with no upstream.
+
+---
+
 ## [1.3.67] - 2026-09-30
 
 ### Added

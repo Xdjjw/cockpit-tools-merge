@@ -135,6 +135,8 @@ static ENGINE_STANDALONE_LOADED: std::sync::OnceLock<()> = std::sync::OnceLock::
 struct EngineStandaloneConfig {
     enabled: bool,
     port: u16,
+    #[serde(default)]
+    account_ids: Vec<String>,
 }
 
 fn engine_standalone_file_path() -> Result<PathBuf, String> {
@@ -158,6 +160,12 @@ pub(crate) fn engine_standalone_enabled() -> bool {
     ENGINE_STANDALONE.load(std::sync::atomic::Ordering::SeqCst)
 }
 
+pub(crate) fn engine_standalone_account_ids() -> Vec<String> {
+    engine_standalone_config()
+        .map(|c| c.account_ids)
+        .unwrap_or_default()
+}
+
 pub(crate) fn engine_standalone_port() -> Option<u16> {
     let _ = ENGINE_STANDALONE_LOADED.get_or_init(|| {
         let enabled = engine_standalone_config().map(|c| c.enabled).unwrap_or(false);
@@ -166,12 +174,23 @@ pub(crate) fn engine_standalone_port() -> Option<u16> {
     engine_standalone_config().map(|c| c.port)
 }
 
-pub(crate) fn set_engine_standalone(enabled: bool) -> Result<(), String> {
-    let port = match engine_standalone_config() {
+pub(crate) fn set_engine_standalone(
+    enabled: bool,
+    account_ids: Option<Vec<String>>,
+) -> Result<(), String> {
+    let existing = engine_standalone_config();
+    let port = match &existing {
         Some(config) if config.port != 0 => config.port,
         _ => allocate_random_local_port(CODEX_LOCAL_ACCESS_LOCALHOST_BIND_HOST)?,
     };
-    let config = EngineStandaloneConfig { enabled, port };
+    let account_ids = account_ids.unwrap_or_else(|| {
+        existing.map(|config| config.account_ids).unwrap_or_default()
+    });
+    let config = EngineStandaloneConfig {
+        enabled,
+        port,
+        account_ids,
+    };
     let path = engine_standalone_file_path()?;
     let content = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("序列化引擎配置失败: {e}"))?;

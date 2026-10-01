@@ -977,6 +977,9 @@ pub struct CodexLocalAccessState {
     /// FORK: 引擎独立开关 —— 打开后 sidecar 不依赖 API 服务集合常驻运行。
     #[serde(default)]
     pub engine_standalone_enabled: bool,
+    /// FORK: 引擎独立模式选定的上游账号（来自账号库，可为空）。
+    #[serde(default)]
+    pub engine_standalone_account_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

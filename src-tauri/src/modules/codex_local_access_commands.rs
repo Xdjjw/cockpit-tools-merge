@@ -1454,8 +1454,9 @@ pub async fn prepare_local_access_gateway_for_restart() -> Result<CodexLocalAcce
 /// FORK: 设置破甲引擎独立开关；开=以裸配置常驻 sidecar，关=仅当 API 服务需要时才运行。
 pub async fn set_engine_standalone_enabled(
     enabled: bool,
+    account_ids: Option<Vec<String>>,
 ) -> Result<CodexLocalAccessState, String> {
-    set_engine_standalone(enabled)?;
+    set_engine_standalone(enabled, account_ids)?;
     if enabled {
         ensure_gateway_matches_runtime().await?;
     } else {

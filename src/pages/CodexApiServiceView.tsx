@@ -465,6 +465,27 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
               )}
               {t("codex.localAccess.activateAction", "启动 API 服务")}
             </button>
+            <label className="codex-api-service-engine-upstream">
+              <span>{t("codex.localAccess.engineUpstream", "引擎上游账号")}</span>
+              <select
+                className="form-select form-select-sm"
+                value={state?.engineStandaloneAccountIds?.[0] ?? ""}
+                disabled={engineStandaloneToggling || !state?.engineStandaloneEnabled}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  void handleToggleEngineStandalone(value ? [value] : []);
+                }}
+              >
+                <option value="">
+                  {t("codex.localAccess.engineUpstreamNone", "无（仅引擎空跑）")}
+                </option>
+                {localAccessAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.api_provider_name || account.email || account.id}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               className={`btn ${collection?.enabled ? "btn-danger" : "btn-secondary"}`}

@@ -162,6 +162,18 @@
   gap: 8px;
   min-width: 0;
 }
+.codex-api-service-engine-upstream {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.codex-api-service-engine-upstream .form-select {
+  min-width: 180px;
+}
 
 .codex-api-service-hero-actions {
   gap: 5px;

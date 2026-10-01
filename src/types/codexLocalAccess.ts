@@ -437,6 +437,8 @@ export interface CodexLocalAccessState {
   quotaReserveStatus: CodexLocalAccessQuotaReserveStatus | null;
   /** FORK: 破甲引擎独立开关 —— 打开后 sidecar 不依赖 API 服务集合常驻运行。 */
   engineStandaloneEnabled?: boolean;
+  /** FORK: 引擎独立模式选定的上游账号。 */
+  engineStandaloneAccountIds?: string[];
 }
 
 export interface CodexLocalAccessAppendAccountSkipped {

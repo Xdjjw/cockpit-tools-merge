@@ -167,8 +167,9 @@ pub async fn codex_local_access_restart_sidecar() -> Result<CodexLocalAccessStat
 #[tauri::command]
 pub async fn codex_local_access_engine_set_enabled(
     enabled: bool,
+    account_ids: Option<Vec<String>>,
 ) -> Result<CodexLocalAccessState, String> {
-    codex_local_access::set_engine_standalone_enabled(enabled).await
+    codex_local_access::set_engine_standalone_enabled(enabled, account_ids).await
 }
 
 #[tauri::command]

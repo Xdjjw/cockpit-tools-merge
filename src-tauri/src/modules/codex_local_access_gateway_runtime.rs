@@ -29,7 +29,7 @@ async fn ensure_gateway_matches_runtime_once_locked() -> Result<(), String> {
         None if engine_standalone_enabled() => {
             let port = engine_standalone_port()
                 .unwrap_or_else(|| allocate_random_local_port("127.0.0.1").unwrap_or(0));
-            bare_engine_collection(port)?
+            bare_engine_collection(port, engine_standalone_account_ids())?
         }
         None => {
             stop_gateway_locked().await;
@@ -1107,12 +1107,15 @@ fn stats_model_id_from_response_capture(
 
 /// FORK: 引擎独立模式使用的最小 API 服务集合配置（空账号表，其余字段走 serde 默认值）。
 /// 运行期间保持 runtime.collection = None，不污染 API 服务的真实状态。
-fn bare_engine_collection(port: u16) -> Result<CodexLocalAccessCollection, String> {
+fn bare_engine_collection(
+    port: u16,
+    account_ids: Vec<String>,
+) -> Result<CodexLocalAccessCollection, String> {
     let value = serde_json::json!({
         "enabled": true,
         "port": port,
         "apiKey": "",
-        "accountIds": [],
+        "accountIds": account_ids,
         "createdAt": 0,
         "updatedAt": 0,
     });
@@ -1205,6 +1208,7 @@ fn build_state_snapshot_inner(
         recovery_suppressed_account_ids,
         quota_reserve_status,
         engine_standalone_enabled: engine_standalone_enabled(),
+        engine_standalone_account_ids: engine_standalone_account_ids(),
     }
 }
 
