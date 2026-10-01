@@ -887,6 +887,23 @@ function SkillsTab() {
     }
   };
 
+  // FORK: 寒霜 breaker-kit 技能包一键安装（内置 zip，无需本地文件）。
+  const [kitInstalling, setKitInstalling] = useState(false);
+  const handleInstallBreakerKit = async () => {
+    setKitInstalling(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const r = await workshop.installBreakerKit(tool);
+      setNotice(r.message);
+      setState(r.state);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setKitInstalling(false);
+    }
+  };
+
   const handleZipFile = async (file: File | null) => {
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".zip")) {
@@ -926,6 +943,15 @@ function SkillsTab() {
         <button className="btn btn-sm btn-secondary" onClick={() => void handleImport()} disabled={busy}><Download size={13} /> 导入已有</button>
         <button className="btn btn-sm btn-secondary" onClick={() => void handleCheckUpdates()} disabled={busy}><RefreshCw size={13} /> 检查更新</button>
         <button className="btn btn-sm btn-primary" onClick={() => fileRef.current?.click()}><FolderCog size={13} /> 安装 ZIP</button>
+        <button
+          className="btn btn-sm btn-primary"
+          disabled={busy || kitInstalling}
+          onClick={() => void handleInstallBreakerKit()}
+          title="安装寒霜 breaker-kit 技能包（107 技能 + RULES + 脚本，解压到 ~/.codex/skills/hanshuang-breaker-kit/）"
+        >
+          {kitInstalling ? <RefreshCw size={13} className="loading-spinner" /> : <FolderCog size={13} />}
+          寒霜技能包
+        </button>
         <input
           className="ws-search"
           value={query}

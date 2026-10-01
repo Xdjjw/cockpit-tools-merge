@@ -731,7 +731,11 @@ fn sidecar_api_key_manifest_values_with_internal(
             "enabled": item.enabled,
         }));
     }
-    let internal_account_ids = internal_api_account_ids();
+    let internal_account_ids = if engine_standalone_enabled() {
+        collection.account_ids.clone()
+    } else {
+        internal_api_account_ids()
+    };
     if include_internal && !internal_account_ids.is_empty() {
         values.push(json!({
             "id": "__cockpit_internal__",
@@ -914,7 +918,7 @@ fn effective_sidecar_account_ids_with_internal(
 ) -> Vec<String> {
     let mut account_ids = collection.account_ids.clone();
     let mut seen: HashSet<String> = account_ids.iter().cloned().collect();
-    if include_internal {
+    if include_internal && !engine_standalone_enabled() {
         for account_id in internal_api_account_ids() {
             if seen.insert(account_id.clone()) {
                 account_ids.push(account_id);
@@ -1247,13 +1251,19 @@ fn sidecar_client_api_keys_with_internal(
             keys.push(key.to_string());
         }
     }
-    let internal_account_ids = internal_api_account_ids();
+    let internal_account_ids = if engine_standalone_enabled() {
+        collection.account_ids.clone()
+    } else {
+        internal_api_account_ids()
+    };
     if include_internal
         && !internal_account_ids.is_empty()
         && !sidecar_auth_ids_for_account_ids_with_overrides(internal_account_ids, account_overrides)
             .is_empty()
     {
-        keys.push(internal_api_service_key().to_string());
+        if seen.insert(internal_api_service_key().to_string()) {
+            keys.push(internal_api_service_key().to_string());
+        }
     }
     keys
 }
@@ -1314,7 +1324,11 @@ fn sidecar_api_key_account_scope_values_with_internal(
         values.insert(key.to_string(), json!(auth_ids));
     }
     if include_internal {
-        let internal_account_ids = internal_api_account_ids();
+        let internal_account_ids = if engine_standalone_enabled() {
+            collection.account_ids.clone()
+        } else {
+            internal_api_account_ids()
+        };
         let internal_auth_ids = sidecar_auth_ids_for_account_ids_with_overrides(
             internal_account_ids,
             account_overrides,

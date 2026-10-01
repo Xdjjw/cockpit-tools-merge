@@ -110,8 +110,8 @@ const AccountsPage = lazy(() =>
 const CodexAccountsPage = lazy(() =>
   import('./pages/CodexAccountsPage').then((module) => ({ default: module.CodexAccountsPage })),
 );
-const CodexApiServicePage = lazy(() =>
-  import('./pages/CodexApiServicePage').then((module) => ({ default: module.CodexApiServicePage })),
+const CodexEnginePage = lazy(() =>
+  import('./pages/CodexEnginePage').then((module) => ({ default: module.CodexEnginePage })),
 );
 const ClaudeAccountsPage = lazy(() =>
   import('./pages/ClaudeAccountsPage').then((module) => ({ default: module.ClaudeAccountsPage })),
@@ -3884,7 +3884,7 @@ function MainApp() {
                 hidden={page !== 'codex-api-service'}
                 aria-hidden={page !== 'codex-api-service'}
               >
-                <CodexApiServicePage />
+                <CodexEnginePage />
                 {page === 'codex-api-service' ? <BootReadyMarker /> : null}
               </div>
             </Suspense>

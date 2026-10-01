@@ -152,6 +152,15 @@ fn engine_standalone_config() -> Option<EngineStandaloneConfig> {
     serde_json::from_str(&content).ok()
 }
 
+fn normalize_engine_account_ids(account_ids: Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    account_ids
+        .into_iter()
+        .map(|id| id.trim().to_string())
+        .filter(|id| !id.is_empty() && seen.insert(id.clone()))
+        .collect()
+}
+
 pub(crate) fn engine_standalone_enabled() -> bool {
     let _ = ENGINE_STANDALONE_LOADED.get_or_init(|| {
         let enabled = engine_standalone_config().map(|c| c.enabled).unwrap_or(false);
@@ -189,7 +198,7 @@ pub(crate) fn set_engine_standalone(
     let config = EngineStandaloneConfig {
         enabled,
         port,
-        account_ids,
+        account_ids: normalize_engine_account_ids(account_ids),
     };
     let path = engine_standalone_file_path()?;
     let content = serde_json::to_string_pretty(&config)
@@ -198,6 +207,10 @@ pub(crate) fn set_engine_standalone(
         .map_err(|e| format!("写入引擎配置失败: {e}"))?;
     ENGINE_STANDALONE.store(enabled, std::sync::atomic::Ordering::SeqCst);
     Ok(())
+}
+
+pub(crate) fn persist_engine_standalone_accounts(account_ids: Vec<String>) -> Result<(), String> {
+    set_engine_standalone(engine_standalone_enabled(), Some(account_ids))
 }
 
 /// All host-triggered Codex requests share this scheduler. The account permit

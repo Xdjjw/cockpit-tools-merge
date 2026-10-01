@@ -445,7 +445,7 @@ function normalizeGroupName(raw: unknown, fallbackPlatform: PlatformId): string 
     return 'Claude';
   }
   if (fallbackPlatform === 'codex_api_service') {
-    return 'Codex API';
+    return '破甲引擎';
   }
   if (fallbackPlatform === 'workbuddy') {
     return 'WorkBuddy';

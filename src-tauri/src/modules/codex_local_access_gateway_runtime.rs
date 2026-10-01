@@ -23,17 +23,36 @@ async fn ensure_gateway_matches_runtime_once_locked() -> Result<(), String> {
         let _ = task.await;
     }
 
-    // FORK: 引擎独立开关 —— 未创建 API 服务集合时，开关打开则以裸配置常驻。
-    let collection = match collection {
-        Some(collection) => collection,
-        None if engine_standalone_enabled() => {
-            let port = engine_standalone_port()
-                .unwrap_or_else(|| allocate_random_local_port("127.0.0.1").unwrap_or(0));
-            bare_engine_collection(port, engine_standalone_account_ids())?
+    // 独立引擎启用时，旧 API 服务集合只作为兼容数据保存，不参与 sidecar 运行配置。
+    let engine_enabled = engine_standalone_enabled();
+    let collection = if engine_enabled {
+        let port = engine_standalone_port()
+            .unwrap_or_else(|| allocate_random_local_port("127.0.0.1").unwrap_or(0));
+        let bare = bare_engine_collection(port, engine_standalone_account_ids())?;
+        let mut runtime = gateway_runtime().lock().await;
+        let changed = runtime
+            .collection
+            .as_ref()
+            .map(|current| {
+                current.port != bare.port
+                    || current.account_ids != bare.account_ids
+                    || current.api_key != bare.api_key
+            })
+            .unwrap_or(true);
+        if changed {
+            sync_runtime_collection(&mut runtime, bare.clone());
         }
-        None => {
-            stop_gateway_locked().await;
-            return Ok(());
+        // The engine collection is runtime-only; never flush it into the legacy
+        // API service file through the background stats worker.
+        runtime.collection_dirty = false;
+        bare
+    } else {
+        match collection {
+            Some(collection) => collection,
+            None => {
+                stop_gateway_locked().await;
+                return Ok(());
+            }
         }
     };
 
@@ -1105,16 +1124,19 @@ fn stats_model_id_from_response_capture(
         .to_string()
 }
 
-/// FORK: 引擎独立模式使用的最小 API 服务集合配置（空账号表，其余字段走 serde 默认值）。
-/// 运行期间保持 runtime.collection = None，不污染 API 服务的真实状态。
+/// 独立引擎使用的最小运行时集合。它只存在于内存，不写回 API 服务集合文件。
 fn bare_engine_collection(
     port: u16,
     account_ids: Vec<String>,
 ) -> Result<CodexLocalAccessCollection, String> {
+    let account_ids = normalize_engine_account_ids(account_ids);
+    for account_id in &account_ids {
+        register_internal_api_account(account_id)?;
+    }
     let value = serde_json::json!({
         "enabled": true,
         "port": port,
-        "apiKey": "",
+        "apiKey": internal_api_service_key(),
         "accountIds": account_ids,
         "createdAt": 0,
         "updatedAt": 0,
@@ -1127,7 +1149,14 @@ fn build_state_snapshot_inner(
     runtime: &GatewayRuntime,
     include_default_profile: bool,
 ) -> CodexLocalAccessState {
-    let collection = runtime.collection.clone();
+    let collection = runtime.collection.clone().map(|mut collection| {
+        if engine_standalone_enabled() {
+            // Do not serialize the process-only internal bearer token to the UI.
+            collection.api_key.clear();
+            collection.api_keys.clear();
+        }
+        collection
+    });
     let member_count = collection
         .as_ref()
         .map(|item| item.account_ids.len())

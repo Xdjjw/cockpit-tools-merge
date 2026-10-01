@@ -133,6 +133,25 @@ pub(crate) async fn dc_check_skill_updates(
         .map_err(|e| CodexxError::Config(format!("检查 Skill 更新失败: {e}")))?
 }
 
+/// FORK: 安装内置的寒霜 breaker-kit 技能包（107 技能 + RULES + 脚本）。
+#[tauri::command]
+pub(crate) async fn dc_install_breaker_kit(
+    tool: ToolId,
+    config_dir: Option<String>,
+) -> Result<SkillsMcpActionResult> {
+    const KIT_ZIP: &[u8] = crate::devconduit::constants::HANSHUANG_BREAKER_KIT_ZIP_BYTES;
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::devconduit::skills_mcp::tool::install_tool_skill_zip_inner(
+            tool,
+            config_dir,
+            "hanshuang-breaker-kit.zip".to_string(),
+            KIT_ZIP.to_vec(),
+        )
+    })
+    .await
+    .map_err(|e| CodexxError::Config(format!("安装寒霜技能包失败: {e}")))?
+}
+
 #[tauri::command]
 pub(crate) async fn dc_install_mcp_integration(
     tool: ToolId,

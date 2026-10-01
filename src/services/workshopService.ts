@@ -231,6 +231,11 @@ export function toggleMcpAll(
   return invoke("dc_toggle_mcp_all", { configDir: configDir ?? null, id, enabled });
 }
 
+// FORK: 寒霜 breaker-kit 技能包一键安装（后端内置 zip，就地解压到引擎 skills 目录）。
+export function installBreakerKit(tool: string, configDir?: string): Promise<SkillsMcpActionResult> {
+  return invoke("dc_install_breaker_kit", { tool, configDir: configDir ?? null });
+}
+
 export function discoverMcpHosts(): Promise<McpHostDiscovery[]> {
   return invoke("dc_discover_mcp_hosts");
 }

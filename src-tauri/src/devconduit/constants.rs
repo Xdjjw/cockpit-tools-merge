@@ -17,6 +17,39 @@ pub(crate) const ULTIMATE_V3_CONTENT: &str =
 pub(crate) const ULTIMATE_V3_RULES: &str =
     include_str!("../../resources/devconduit-prompts/ultimate-v3.rules");
 
+// FORK: hanshuang-codex（github.com/aimeoa/hanshuang-codex）破甲提示词全家桶。
+pub(crate) const HANSHUANG_V5_FILENAME: &str = "hanshuang-v5.md";
+pub(crate) const HANSHUANG_V5_CONTENT: &str =
+    include_str!("../../resources/devconduit-prompts/hanshuang-v5.md");
+pub(crate) const HANSHUANG_V4_FILENAME: &str = "hanshuang-v4.md";
+pub(crate) const HANSHUANG_V4_CONTENT: &str =
+    include_str!("../../resources/devconduit-prompts/hanshuang-v4.md");
+pub(crate) const HANSHUANG_V4_CLAUDE_FILENAME: &str = "hanshuang-v4-claude.md";
+pub(crate) const HANSHUANG_V4_CLAUDE_CONTENT: &str =
+    include_str!("../../resources/devconduit-prompts/hanshuang-v4-claude.md");
+pub(crate) const HANSHUANG_V3_FILENAME: &str = "hanshuang-v3.md";
+pub(crate) const HANSHUANG_V3_CONTENT: &str =
+    include_str!("../../resources/devconduit-prompts/hanshuang-v3.md");
+pub(crate) const HANSHUANG_FLASH_V2_FILENAME: &str = "hanshuang-flash-v2.md";
+pub(crate) const HANSHUANG_FLASH_V2_CONTENT: &str =
+    include_str!("../../resources/devconduit-prompts/hanshuang-flash-v2.md");
+pub(crate) const HANSHUANG_VARIANT_B_EN_FILENAME: &str = "hanshuang-variant-b-en.md";
+pub(crate) const HANSHUANG_VARIANT_B_EN_CONTENT: &str =
+    include_str!("../../resources/devconduit-prompts/hanshuang-variant-b-en.md");
+pub(crate) const HANSHUANG_ZCODE_FILENAME: &str = "hanshuang-zcode.md";
+pub(crate) const HANSHUANG_ZCODE_CONTENT: &str =
+    include_str!("../../resources/devconduit-prompts/hanshuang-zcode.md");
+/// 寒霜 breaker-kit 技能包（107 技能 + RULES + 脚本，解压到 ~/.codex/skills/hanshuang-breaker-kit/）。
+pub(crate) const HANSHUANG_BREAKER_KIT_ZIP_BYTES: &[u8] =
+    include_bytes!("../../resources/hanshuang-breaker-kit.zip");
+pub(crate) const HANSHUANG_V5_ID: &str = "hanshuang-v5";
+pub(crate) const HANSHUANG_V4_ID: &str = "hanshuang-v4";
+pub(crate) const HANSHUANG_V4_CLAUDE_ID: &str = "hanshuang-v4-claude";
+pub(crate) const HANSHUANG_V3_ID: &str = "hanshuang-v3";
+pub(crate) const HANSHUANG_FLASH_V2_ID: &str = "hanshuang-flash-v2";
+pub(crate) const HANSHUANG_VARIANT_B_EN_ID: &str = "hanshuang-variant-b-en";
+pub(crate) const HANSHUANG_ZCODE_ID: &str = "hanshuang-zcode";
+
 pub(crate) const LSKILL_159_ID: &str = "lskill-1.5.9";
 pub(crate) const LSKILL_159_FILENAME: &str = "lskill-1.5.9.md";
 pub(crate) const LSKILL_159_CONTENT: &str =

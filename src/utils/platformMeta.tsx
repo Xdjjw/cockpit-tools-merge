@@ -25,7 +25,7 @@ export function getPlatformLabel(platformId: PlatformId, _t: TFunction): string 
     case 'codex':
       return 'Codex';
     case 'codex_api_service':
-      return _t('codex.apiService.navTitle', 'Codex API Service');
+      return _t('codex.engine.navTitle', '破甲引擎');
     case 'claude_manager':
       return 'Claude';
     case 'zed':

@@ -125,6 +125,83 @@ pub(crate) fn bundled_prompt_metas() -> Vec<BundledPromptMeta> {
             rules_content: None,
         });
     }
+    // FORK: hanshuang-codex 寒霜破甲提示词全家桶（Codex/Claude/ZCode/DSH 各引擎变体）。
+    let hanshuang: [(&str, &str, &str, &str); 7] = [
+        (
+            crate::devconduit::constants::HANSHUANG_V5_ID,
+            crate::devconduit::constants::HANSHUANG_V5_FILENAME,
+            "寒霜 v5（ENI 路由版）",
+            "最新主力：ENI persona + 107 技能路由表 + breaker-kit 本地通道",
+        ),
+        (
+            crate::devconduit::constants::HANSHUANG_V4_ID,
+            crate::devconduit::constants::HANSHUANG_V4_FILENAME,
+            "寒霜 v4（Codex）",
+            "与 Claude 版同文：激活词 + Authorization + 执行台账 + 硬拒绝覆盖",
+        ),
+        (
+            crate::devconduit::constants::HANSHUANG_V4_CLAUDE_ID,
+            crate::devconduit::constants::HANSHUANG_V4_CLAUDE_FILENAME,
+            "寒霜 v4（Claude/DSH）",
+            "CLAUDE.md 规范同文版，DeepSeek Harness 也用这份",
+        ),
+        (
+            crate::devconduit::constants::HANSHUANG_V3_ID,
+            crate::devconduit::constants::HANSHUANG_V3_FILENAME,
+            "寒霜 v3",
+            "精简版：激活词 + 授权假设 + 硬拒绝清单",
+        ),
+        (
+            crate::devconduit::constants::HANSHUANG_FLASH_V2_ID,
+            crate::devconduit::constants::HANSHUANG_FLASH_V2_FILENAME,
+            "寒霜 flash v2",
+            "轻量版：快速任务直通",
+        ),
+        (
+            crate::devconduit::constants::HANSHUANG_VARIANT_B_EN_ID,
+            crate::devconduit::constants::HANSHUANG_VARIANT_B_EN_FILENAME,
+            "寒霜 变体B v3（英文）",
+            "英文 persona 变体，英文任务保真更好",
+        ),
+        (
+            crate::devconduit::constants::HANSHUANG_ZCODE_ID,
+            crate::devconduit::constants::HANSHUANG_ZCODE_FILENAME,
+            "寒霜 zcode 版",
+            "ZCode/AGENTS.md 全局记忆变体",
+        ),
+    ];
+    for (id, filename, title, subtitle) in hanshuang {
+        let content = match id {
+            crate::devconduit::constants::HANSHUANG_V5_ID => {
+                crate::devconduit::constants::HANSHUANG_V5_CONTENT
+            }
+            crate::devconduit::constants::HANSHUANG_V4_ID => {
+                crate::devconduit::constants::HANSHUANG_V4_CONTENT
+            }
+            crate::devconduit::constants::HANSHUANG_V4_CLAUDE_ID => {
+                crate::devconduit::constants::HANSHUANG_V4_CLAUDE_CONTENT
+            }
+            crate::devconduit::constants::HANSHUANG_V3_ID => {
+                crate::devconduit::constants::HANSHUANG_V3_CONTENT
+            }
+            crate::devconduit::constants::HANSHUANG_FLASH_V2_ID => {
+                crate::devconduit::constants::HANSHUANG_FLASH_V2_CONTENT
+            }
+            crate::devconduit::constants::HANSHUANG_VARIANT_B_EN_ID => {
+                crate::devconduit::constants::HANSHUANG_VARIANT_B_EN_CONTENT
+            }
+            _ => crate::devconduit::constants::HANSHUANG_ZCODE_CONTENT,
+        };
+        metas.push(BundledPromptMeta {
+            id,
+            filename,
+            title,
+            subtitle,
+            badge: "寒霜破甲",
+            content,
+            rules_content: None,
+        });
+    }
     metas
 }
 

@@ -173,6 +173,13 @@ pub async fn codex_local_access_engine_set_enabled(
 }
 
 #[tauri::command]
+pub async fn codex_local_access_engine_set_accounts(
+    account_ids: Vec<String>,
+) -> Result<CodexLocalAccessState, String> {
+    codex_local_access::set_engine_standalone_accounts(account_ids).await
+}
+
+#[tauri::command]
 pub async fn codex_local_access_kill_port() -> Result<CodexLocalAccessPortCleanupResult, String> {
     codex_local_access::kill_local_access_port_processes().await
 }

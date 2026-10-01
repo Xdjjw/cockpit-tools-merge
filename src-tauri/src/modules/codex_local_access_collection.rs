@@ -1791,7 +1791,7 @@ async fn ensure_runtime_loaded_without_start_with_profile_restore(
         let mut next_collection = loaded_collection;
         let mut persist_after_load = false;
 
-        if next_collection.is_none() {
+        if next_collection.is_none() && !engine_standalone_enabled() {
             next_collection = Some(CodexLocalAccessCollection {
                 enabled: false,
                 port: allocate_initial_local_port(CODEX_LOCAL_ACCESS_LOCALHOST_BIND_HOST)?,
@@ -1939,11 +1939,12 @@ async fn ensure_runtime_loaded() -> Result<(), String> {
 
     let should_start = {
         let runtime = gateway_runtime().lock().await;
-        runtime
-            .collection
-            .as_ref()
-            .map(|collection| collection.enabled)
-            .unwrap_or(false)
+        engine_standalone_enabled()
+            || runtime
+                .collection
+                .as_ref()
+                .map(|collection| collection.enabled)
+                .unwrap_or(false)
     };
 
     if should_start {
@@ -1964,11 +1965,12 @@ async fn ensure_runtime_loaded_for_app_startup() -> Result<(), String> {
 
     let should_start = {
         let runtime = gateway_runtime().lock().await;
-        runtime
-            .collection
-            .as_ref()
-            .map(|collection| collection.enabled)
-            .unwrap_or(false)
+        engine_standalone_enabled()
+            || runtime
+                .collection
+                .as_ref()
+                .map(|collection| collection.enabled)
+                .unwrap_or(false)
     };
 
     if should_start {

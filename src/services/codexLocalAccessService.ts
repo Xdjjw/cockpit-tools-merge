@@ -164,6 +164,12 @@ export async function setCodexEngineStandaloneEnabled(
   });
 }
 
+export async function setCodexEngineStandaloneAccounts(
+  accountIds: string[],
+): Promise<CodexLocalAccessState> {
+  return await invoke("codex_local_access_engine_set_accounts", { accountIds });
+}
+
 export async function killCodexLocalAccessPort(): Promise<CodexLocalAccessPortCleanupResult> {
   return await invoke("codex_local_access_kill_port");
 }

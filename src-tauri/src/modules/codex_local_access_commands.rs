@@ -1456,17 +1456,48 @@ pub async fn set_engine_standalone_enabled(
     enabled: bool,
     account_ids: Option<Vec<String>>,
 ) -> Result<CodexLocalAccessState, String> {
+    if enabled {
+        let requested_ids = account_ids
+            .clone()
+            .unwrap_or_else(engine_standalone_account_ids);
+        if normalize_engine_account_ids(requested_ids).is_empty() {
+            return Err("启用破甲引擎前至少选择一个上游账号".to_string());
+        }
+    }
     set_engine_standalone(enabled, account_ids)?;
     if enabled {
         ensure_gateway_matches_runtime().await?;
     } else {
         stop_gateway().await;
+        let persisted_collection = load_collection_from_disk()?;
+        let mut runtime = gateway_runtime().lock().await;
+        runtime.collection = persisted_collection;
+        runtime.loaded = true;
+        runtime.last_error = None;
+        prune_runtime_account_state(&mut runtime);
+        prune_prepared_account_cache(&mut runtime, now_ms());
+    }
+    snapshot_state().await
+}
+
+pub async fn set_engine_standalone_accounts(
+    account_ids: Vec<String>,
+) -> Result<CodexLocalAccessState, String> {
+    persist_engine_standalone_accounts(account_ids)?;
+    if engine_standalone_enabled() {
+        ensure_gateway_matches_runtime().await?;
     }
     snapshot_state().await
 }
 
 pub async fn restart_local_access_sidecar() -> Result<CodexLocalAccessState, String> {
     ensure_runtime_loaded_without_start().await?;
+
+    if engine_standalone_enabled() {
+        stop_gateway().await;
+        ensure_gateway_matches_runtime().await?;
+        return snapshot_state().await;
+    }
 
     let collection = {
         let runtime = gateway_runtime().lock().await;
