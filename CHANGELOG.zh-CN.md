@@ -8,6 +8,14 @@
 
 ---
 
+## [1.3.70] - 2026-10-01
+
+### 新增
+
+- 吸收冷咖啡工作台提示词体系（github.com/3641397194-wq/gpt6-Astra）：10 个预渲染 CHA 座位模板（codex/claude/grok/deepseek/glm53/gemini/cursor/workbuddy/doubao/mimo，含口令激活页），以及完整 cha 路由包（ROUTER + NORMALIZER + 6 父工作流 + 81 张叶子卡）从技能页一键安装。生成时已剔除官方中转/社群推广内容。
+
+---
+
 ## [1.3.69] - 2026-10-01
 
 ### 新增

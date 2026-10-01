@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.70] - 2026-10-01
+
+### Added
+
+- Absorbed the coldcoffee workbench prompt system (github.com/3641397194-wq/gpt6-Astra): 10 pre-rendered CHA seat templates (codex, claude, grok, deepseek, glm53, gemini, cursor, workbuddy, doubao, mimo) with the control-word activation page, and the full cha router kit (ROUTER, NORMALIZER, 6 parent workflows, 81 leaf cards) installable in one click from the Skills tab. Vendor relay/group promotion stripped during generation.
+
+---
+
 ## [1.3.69] - 2026-10-01
 
 ### Added
