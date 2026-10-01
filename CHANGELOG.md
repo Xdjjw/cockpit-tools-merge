@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.67] - 2026-09-30
+
+### Added
+
+- Standalone engine switch for the breaking-down sidecar: start it without configuring any API service (no provider, no API-key collection). The switch lives in the API service view hero; while on, the engine runs persistently with an empty account table and keeps hot-loading ladder/toolrouter state. API service behavior is unchanged when configured.
+
+---
+
 ## [1.3.66] - 2026-09-30
 
 ### Added
