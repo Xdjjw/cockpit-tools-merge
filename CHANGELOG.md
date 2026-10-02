@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.71] - 2026-10-02
+
+### Changed
+
+- The standalone engine is now managed from its own 破甲引擎 page (power switch, upstream account multi-select with an at-least-one guard, ladder/toolrouter quick controls). The duplicate inline toggle and upstream dropdown in the API service view were removed; the standalone-running status badge remains.
+
+---
+
 ## [1.3.70] - 2026-10-01
 
 ### Added
