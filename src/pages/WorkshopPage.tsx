@@ -36,6 +36,16 @@ type Engine = "codex" | "claude" | "pi";
 type McpEngine = "codex" | "claude" | "grok" | "zcode" | "kilo" | "pi";
 type InjectMode = "replace" | "append";
 
+// Codex 默认只展示经过整理的可用模板。历史版本和跨平台资料仍由后端保留，
+// 这样不会影响已有配置或回滚，但不会继续淹没日常操作列表。
+const CURATED_CODEX_BUILTIN_PROMPT_IDS = new Set([
+  "codex-keysmith",
+  "lskill-1.5.9",
+  "ultimate-v3",
+  "hanshuang-v5",
+  "coldcoffee-codex",
+]);
+
 // MCP 自动接入目录（与 everything-patch 内置集成一致）
 const MCP_DIRECTORY = [
   {
@@ -155,6 +165,18 @@ function PromptsTab() {
     : engine === "claude"
       ? (claudeState?.activeInstructionTitle ?? null)
       : (piState?.instructionTemplateKey ?? piState?.activeInstructionTitle ?? null);
+
+  const visibleBuiltins = useMemo(() => {
+    if (engine !== "codex") {
+      return builtins;
+    }
+    const activeBuiltinId = activeTitle?.startsWith("builtin:")
+      ? activeTitle.slice("builtin:".length)
+      : null;
+    return builtins.filter((prompt) =>
+      CURATED_CODEX_BUILTIN_PROMPT_IDS.has(prompt.id) || prompt.id === activeBuiltinId,
+    );
+  }, [activeTitle, builtins, engine]);
 
   /** 计算本次启用将写入/替换的文件清单（确认弹窗展示用） */
   const affectedFiles = (id: string, filename: string, rules?: string | null): string[] => {
@@ -451,14 +473,10 @@ function PromptsTab() {
         </div>
         <div className="workshop-card-grid">
           {(engine === "pi"
-            ? builtins.filter((p) => p.id === "lskill-1.5.9")
-            : builtins.filter((p) =>
-                engine === "codex"
-                  ? !p.badge?.includes("Anthropic")
-                  : engine === "claude"
-                    ? !p.badge?.includes("OpenAI")
-                    : true
-              )
+            ? visibleBuiltins.filter((p) => p.id === "lskill-1.5.9")
+            : engine === "codex"
+              ? visibleBuiltins
+              : visibleBuiltins.filter((p) => !p.badge?.includes("OpenAI"))
           ).map((p) => {
             const isActive = activeTitle === `builtin:${p.id}`;
             return (

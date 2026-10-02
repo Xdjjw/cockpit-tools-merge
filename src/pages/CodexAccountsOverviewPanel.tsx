@@ -582,6 +582,18 @@ export function CodexAccountsOverviewPanel(props: CodexAccountsViewProps) {
                 {privacyModeEnabled ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
               <button
+                type="button"
+                className={`btn btn-secondary codex-engine-entry-button${localAccessState?.engineStandaloneEnabled ? " is-active" : ""}`}
+                onClick={openCodexApiServicePage}
+                title={t(
+                  "codex.engine.openFromOverview",
+                  "打开破甲引擎独立开关",
+                )}
+              >
+                <Power size={14} />
+                <span>{t("codex.engine.navTitle", "破甲引擎")}</span>
+              </button>
+              <button
                 className="btn btn-secondary export-btn icon-only"
                 onClick={() => void handleExport(filteredIds)}
                 disabled={exporting || filteredIds.length === 0}
