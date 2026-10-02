@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.72] - 2026-10-02
+
+### Changed
+
+- Added a persistent 破甲引擎 entry in the Codex overview so the standalone sidecar toggle is always reachable.
+- Curated the Codex Workshop builtin list to show the focused templates while retaining legacy resources for compatibility.
+- Synced the application and Cargo package versions to 1.3.72.
+
+---
+
 ## [1.3.71] - 2026-10-02
 
 ### Changed
