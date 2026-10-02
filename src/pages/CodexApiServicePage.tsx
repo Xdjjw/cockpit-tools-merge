@@ -1962,34 +1962,6 @@ export function useCodexApiServicePageController() {
     }
   };
 
-  // FORK: 破甲引擎独立开关 —— 不依赖 API 服务集合，直接常驻/停止 sidecar。
-  const [engineStandaloneToggling, setEngineStandaloneToggling] = useState(false);
-  const handleToggleEngineStandalone = async (accountIds?: string[]) => {
-    const enabled = !(state?.engineStandaloneEnabled ?? false);
-    setEngineStandaloneToggling(true);
-    setError("");
-    setNotice("");
-    try {
-      const next = await codexLocalAccessService.setCodexEngineStandaloneEnabled(
-        enabled,
-        accountIds,
-      );
-      setState(next);
-      setNotice(
-        enabled
-          ? t(
-              "codex.localAccess.engineEnabled",
-              "破甲引擎已独立启动（未配置 API 服务也在运行）",
-            )
-          : t("codex.localAccess.engineDisabled", "破甲引擎独立运行已关闭"),
-      );
-    } catch (e) {
-      setError(String(e).replace(/^Error:\s*/, ""));
-    } finally {
-      setEngineStandaloneToggling(false);
-    }
-  };
-
   const handleRestartSidecar = async () => {
     const confirmed = await confirmDialog(
       t(
@@ -3875,8 +3847,6 @@ export function useCodexApiServicePageController() {
     setTestChatInput,
     setTimeoutDrafts,
     setTimeoutPresetNameDraft,
-    engineStandaloneToggling,
-    handleToggleEngineStandalone,
     setTimeoutsError,
     setTimeoutsModalOpen,
     sidecarRestarting,

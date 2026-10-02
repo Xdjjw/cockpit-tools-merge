@@ -176,8 +176,6 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
     proxyInput,
     quotaPoolSummary,
     reloadState,
-    engineStandaloneToggling,
-    handleToggleEngineStandalone,
     removeAccountModelMappingRow,
     REQUEST_LOG_PAGE_SIZE_OPTIONS,
     requestKindLabel,
@@ -395,21 +393,6 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
             </button>
             <button
               type="button"
-              className={`btn ${state?.engineStandaloneEnabled ? "btn-primary" : "btn-secondary"}`}
-              onClick={() => void handleToggleEngineStandalone()}
-              disabled={engineStandaloneToggling}
-              title={t(
-                "codex.localAccess.engineToggleTitle",
-                "破甲引擎独立开关：打开后引擎常驻运行，无需配置 API 服务",
-              )}
-            >
-              <Power size={14} />
-              {state?.engineStandaloneEnabled
-                ? t("codex.localAccess.engineOn", "引擎独立运行中")
-                : t("codex.localAccess.engineOff", "引擎独立开关")}
-            </button>
-            <button
-              type="button"
               className="btn btn-secondary"
               onClick={() => void handleRestartSidecar()}
               disabled={
@@ -465,27 +448,6 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
               )}
               {t("codex.localAccess.activateAction", "启动 API 服务")}
             </button>
-            <label className="codex-api-service-engine-upstream">
-              <span>{t("codex.localAccess.engineUpstream", "引擎上游账号")}</span>
-              <select
-                className="form-select form-select-sm"
-                value={state?.engineStandaloneAccountIds?.[0] ?? ""}
-                disabled={engineStandaloneToggling || !state?.engineStandaloneEnabled}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  void handleToggleEngineStandalone(value ? [value] : []);
-                }}
-              >
-                <option value="">
-                  {t("codex.localAccess.engineUpstreamNone", "无（仅引擎空跑）")}
-                </option>
-                {localAccessAccounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.api_provider_name || account.email || account.id}
-                  </option>
-                ))}
-              </select>
-            </label>
             <button
               type="button"
               className={`btn ${collection?.enabled ? "btn-danger" : "btn-secondary"}`}
